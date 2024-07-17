@@ -1,0 +1,268 @@
+#include <iostream>
+#include <vector>
+#include <string>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <unordered_map>
+int PAGE_FAULT = 1000;
+std::string get(char *key, int * directory_buffer, int current_fd_buffer_index, std::unordered_map<int, std::unordered_map<std::string, int*>> &master_map){
+    int file_index = -1;
+    printf("current Fd Buffer Index %d\n", current_fd_buffer_index);
+    for (int i = current_fd_buffer_index; i > -1; i --){
+        if (master_map[directory_buffer[i]].find(key) != master_map[directory_buffer[i]].end()){
+            file_index = directory_buffer[i];
+            break;
+        }
+    }
+    if (file_index == -1){
+        std::string return_value = "Key Does Not Exist";
+        return return_value;
+    }
+    char path[256];
+    snprintf(path, sizeof(path), "db/%d", file_index);
+    int fd = open(path, O_RDONLY, 0);
+    memset(path, 0, 256);
+    int *arr = master_map[directory_buffer[file_index]][key];
+    int offset = arr[0];
+    int length_of_record = arr[1];
+    printf("offset: %d and Length of record: %d\n", offset, length_of_record);
+    char * current_file_buf;
+    current_file_buf = (char*)malloc((length_of_record + 1) * sizeof(char));
+    lseek(fd, offset, 0);
+    int bytes_read = read(fd, current_file_buf, length_of_record);
+    if (bytes_read != length_of_record){
+        printf("Mismatch between Bytes Read: %d and Length of Record %d \n", bytes_read, length_of_record);
+    }
+    int size_of_key;
+    int size_of_value;
+    memcpy(&size_of_key, current_file_buf, sizeof(int));
+    memcpy(&size_of_value, current_file_buf+ sizeof(int), sizeof(int));
+    char *found_key;
+    found_key = (char*) malloc ((size_of_key + 1) * sizeof(char));
+    memcpy(found_key, current_file_buf + sizeof(int) + sizeof(int), size_of_key);
+    found_key[size_of_key] = '\0';
+    if (strcmp(found_key, key) != 0){
+        printf("Found key %s is not equal to inputted key: %s ", found_key, key);
+        std::string return_value = "Keys are not equal in DB";
+        return return_value;
+    }
+    char *found_value;
+    found_value = (char*) malloc((size_of_value + 1) * sizeof(char));
+    memcpy(found_value, current_file_buf + sizeof(int) + sizeof(int) + size_of_key, size_of_value);
+    found_value[size_of_value] = '\0';
+    std::string return_value(found_value);
+    free(found_key);
+    free(found_value);
+    free(current_file_buf);
+    return return_value;
+}
+int set(char * key, char * value, std::unordered_map<std::string, int*> &map, int fd){
+    int PAGE_SIZE = 4096;
+    char buf[PAGE_SIZE];
+    int *arr = (int *)malloc(2 * sizeof(int));
+    int key_length = strlen(key);
+    int val_length = strlen(value);
+    memset(buf, 0, PAGE_SIZE);
+    memcpy(buf, &key_length, sizeof(int));
+    memcpy(buf + sizeof(int), &val_length, sizeof(int));
+    memcpy(buf + (2 * sizeof(int)), key, key_length);
+    memcpy(buf + (2* sizeof(int)) + key_length, value, val_length);
+    int total_length = (2 * sizeof(int)) + key_length + val_length;
+    buf[total_length] = '\0';
+    printf("Total Length: %d\n", total_length);
+    printf("Size of buf %lu\n", sizeof(buf));
+    long pos = lseek(fd, 0L, 2);
+    printf("Byte Offset in File %ld \n", pos);
+    int bytes_written;
+    bytes_written = write(fd, buf, total_length);
+    printf("Bytes Written %d \n", bytes_written);
+    if (bytes_written == total_length){
+        printf("Success \n");
+        std::string s(key);
+        std::cout << s << "string \n";
+        printf("Address of Pointer to array: %p\n", arr);
+        arr[0] = pos;
+        arr[1] = total_length;
+        map[s] = arr;
+        memset(buf, 0, PAGE_SIZE);
+        return 0;
+    }
+    memset(buf, 0, PAGE_SIZE);
+    return -1;
+}
+int main(){
+    int dir_fd = open("db/directory", O_RDWR|O_CREAT, 0666);
+    if (dir_fd == -1){
+        printf("File Could not be opened\n");
+        return -1;
+    }
+    int directory_buffer [1024];
+    int bytes_read_dir = read(dir_fd, directory_buffer, 1024);
+    printf("Bytes Read Directory %d\n", bytes_read_dir);
+
+    int current_fd_buffer_index = -1;
+    int fd;
+    size_t dir_byte_count;
+    std::unordered_map<int, std::unordered_map<std::string, int*>> master_map;
+    if (bytes_read_dir == 0){
+        /*
+        Need to create a directory and original hash_map for files based on fd
+        */
+       std::unordered_map<std::string, int*> map;
+       master_map[0] = map;
+       directory_buffer[0] = 0;
+       dir_byte_count = sizeof(int);
+       printf("size of directory %zu \n", dir_byte_count);
+       int dir_bytes_read = write(dir_fd, directory_buffer,dir_byte_count);
+       printf("Bytes Written %d \n", dir_bytes_read);
+       char path[256];
+       snprintf(path, sizeof(path), "db/%d", directory_buffer[0]);
+       fd = open(path, O_RDWR|O_CREAT, 0666);
+       memset(path, 0, 256);
+       current_fd_buffer_index = 0;
+    }
+    else{
+        /*
+        Construction of Keydir in memory hash map based on log files
+        */
+
+        printf("Else Case \n");
+        int file_descriptors_written = bytes_read_dir / sizeof(int);
+        printf("file descriptors Written %d \n", file_descriptors_written);
+        char file_buffer[1024];
+        for (int i = 0; i < file_descriptors_written; i++){
+            std::unordered_map<std::string, int*>& map = master_map[directory_buffer[i]];
+            char path[256];
+            snprintf(path, sizeof(path), "db/%d", directory_buffer[i]);
+            fd = open(path, O_RDONLY, 0);
+            memset(path, 0, 256);
+            int bytes_read = read(fd, file_buffer, 1024);
+            printf("Bytes Read: %d\n", bytes_read);
+            int key_size;
+            int value_size;
+            int j = 0;
+
+            while (j < bytes_read){
+                memcpy(&key_size, file_buffer + j, sizeof(int));
+                memcpy(&value_size, file_buffer+ j + sizeof(int), sizeof(int));
+                char * key = (char*) malloc(key_size+1);
+                char * value = (char *) malloc(value_size+1);
+                memcpy(key, file_buffer + j + sizeof(int) + sizeof(int), key_size);
+                memcpy(value, file_buffer + j + sizeof(int) + sizeof(int) + key_size, value_size);
+                key[key_size] = '\0';
+                value[value_size] = '\0';
+                printf("Key: %s\n", key);
+                printf("Value %s \n", value);
+                printf("Key Size: %d \n", key_size);
+                printf("Value Size %d \n", value_size);
+                std::string key_s(key);
+                int *arr = (int*)malloc(2 * sizeof(int));
+                printf("Pointer to array %p \n", arr);
+                printf("J: %d \n", j);
+                printf("Offset: %lu \n", sizeof(int) + sizeof(int) + key_size + value_size);
+                arr[0] = j;
+                arr[1] = sizeof(int) + sizeof(int) + key_size + value_size;
+                std::cout << key_s << "\n";
+                map[key_s] = arr;
+                j = j + sizeof(int) + sizeof(int) + key_size + value_size;
+
+                free(key);
+                free(value);
+            }
+            close(fd);
+            std::string patch = "Rogan";
+            if (master_map[directory_buffer[i]].find(patch) != master_map[directory_buffer[i]].end()){
+                printf("Found \n");
+            }
+            else{
+                printf("bug\n");
+            }
+            current_fd_buffer_index = i;
+
+        }
+
+        char path[256];
+        snprintf(path, sizeof(path), "db/%d", directory_buffer[file_descriptors_written-1]);
+        fd = open(path, O_RDWR, 0);
+        memset(path, 0, 256);
+    }
+    char command[3];
+    char temp_buffer [1000];
+    char* user_input_key;
+    char * user_input_value;
+    size_t length;
+    char current_file_buffer [1024];
+    int size_in_bytes = read(fd, current_file_buffer, 1024);
+    while(1){
+        printf("Get OR Set: ");
+        scanf("%3s", command);
+        if (strcmp(command, "Set") == 0){
+            printf("Enter Key: ");
+            scanf("%999s", temp_buffer);
+            length = strlen(temp_buffer);
+            user_input_key = (char *) malloc((length+1)* sizeof(char));
+            strcpy(user_input_key, temp_buffer);
+            memset(temp_buffer, 0, 1000);
+            printf("Enter Value: ");
+            scanf("%999s", temp_buffer);
+            length = strlen(temp_buffer);
+            user_input_value = (char*)malloc((length +1) * sizeof(char));
+            strcpy(user_input_value, temp_buffer);
+            memset(temp_buffer, 0, 1000);
+            if (size_in_bytes >= PAGE_FAULT){
+                close(fd);
+                /*
+                The last file is now essentially immutable, it will never be written to again
+                Only read from
+                */
+                directory_buffer[current_fd_buffer_index + 1] = directory_buffer[current_fd_buffer_index]+1;
+                current_fd_buffer_index ++;
+                dir_byte_count = sizeof(directory_buffer);
+                write(dir_fd, directory_buffer,dir_byte_count);
+                char path[256];
+                snprintf(path, sizeof(path), "db/%d", directory_buffer[current_fd_buffer_index]);
+                int fd = open(path, O_RDWR|O_CREAT, 0666);
+                memset(path, 0, 256);
+                std::unordered_map<std::string, int*> map;
+                master_map[current_fd_buffer_index] = map;
+            }
+            int return_error = set(user_input_key, user_input_value, master_map[current_fd_buffer_index], 
+            fd);
+
+            if (return_error == -1){
+                printf("Error occured inserting Key & Value\n");
+            }
+            else{
+                printf("Succesfully Inserted Key: %s \n", user_input_key);
+
+            }
+            memset(command, 0, sizeof(command));
+            free(user_input_key);
+            free(user_input_value);
+            memset(temp_buffer, 0, 1000);
+        }
+        else if (strcmp(command, "Get") == 0){
+            printf("Enter Key: ");
+            scanf("%999s", temp_buffer);
+            length = strlen(temp_buffer);
+            user_input_key = (char *) malloc((length+1)* sizeof(char));
+            strcpy(user_input_key, temp_buffer);
+            std::string return_value = get(user_input_key, directory_buffer, current_fd_buffer_index, master_map);
+            std::cout << "Key: " << user_input_key << " -> Value: " << return_value << "\n";
+            memset(command, 0, sizeof(command));
+            free(user_input_key);
+            memset(temp_buffer, 0, 1000);
+
+        }
+        else{
+            memset(command, 0, sizeof(command));
+            continue;
+        }
+
+    }
+}
+
+
+
