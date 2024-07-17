@@ -6,9 +6,10 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <unordered_map>
-int PAGE_FAULT = 1000;
+int PAGE_FAULT = 40;
 std::string get(char *key, int * directory_buffer, int current_fd_buffer_index, std::unordered_map<int, std::unordered_map<std::string, int*>> &master_map){
     int file_index = -1;
+    printf("Current File Index %d \n", current_fd_buffer_index);
     printf("current Fd Buffer Index %d\n", current_fd_buffer_index);
     for (int i = current_fd_buffer_index; i > -1; i --){
         if (master_map[directory_buffer[i]].find(key) != master_map[directory_buffer[i]].end()){
@@ -20,6 +21,7 @@ std::string get(char *key, int * directory_buffer, int current_fd_buffer_index, 
         std::string return_value = "Key Does Not Exist";
         return return_value;
     }
+    printf("File Index of key %s : --> db/%d \n", key, file_index);
     char path[256];
     snprintf(path, sizeof(path), "db/%d", file_index);
     int fd = open(path, O_RDONLY, 0);
@@ -59,6 +61,7 @@ std::string get(char *key, int * directory_buffer, int current_fd_buffer_index, 
     return return_value;
 }
 int set(char * key, char * value, std::unordered_map<std::string, int*> &map, int fd){
+    printf("fd of Setter %d \n", fd);
     int PAGE_SIZE = 4096;
     char buf[PAGE_SIZE];
     int *arr = (int *)malloc(2 * sizeof(int));
@@ -194,8 +197,11 @@ int main(){
     char * user_input_value;
     size_t length;
     char current_file_buffer [1024];
-    int size_in_bytes = read(fd, current_file_buffer, 1024);
+    //int size_in_bytes = read(fd, current_file_buffer, 1024);
     while(1){
+        lseek(fd, 0L, 0);
+        int size_in_bytes = read(fd, current_file_buffer, 1024);
+        printf("size_in_bytes of file %d \n", size_in_bytes);
         printf("Get OR Set: ");
         scanf("%3s", command);
         if (strcmp(command, "Set") == 0){
@@ -211,16 +217,22 @@ int main(){
             user_input_value = (char*)malloc((length +1) * sizeof(char));
             strcpy(user_input_value, temp_buffer);
             memset(temp_buffer, 0, 1000);
+            printf("Size of Bytes %d --> Page Fault %d \n", size_in_bytes, PAGE_FAULT);
             if (size_in_bytes >= PAGE_FAULT){
+                printf("Changing Page");
                 close(fd);
                 /*
                 The last file is now essentially immutable, it will never be written to again
                 Only read from
                 */
+                printf("Current Fd_buffer_index: %d \n", current_fd_buffer_index);
                 directory_buffer[current_fd_buffer_index + 1] = directory_buffer[current_fd_buffer_index]+1;
                 current_fd_buffer_index ++;
+                printf("New Fd_buffer_index: %d \n", current_fd_buffer_index);
                 dir_byte_count = sizeof(directory_buffer);
-                write(dir_fd, directory_buffer,dir_byte_count);
+                lseek(dir_fd, 0L, 2);
+                int new_bytes = write(dir_fd, &directory_buffer[current_fd_buffer_index],(sizeof(int)));
+                printf("new_bytes %d \n", new_bytes);
                 char path[256];
                 snprintf(path, sizeof(path), "db/%d", directory_buffer[current_fd_buffer_index]);
                 int fd = open(path, O_RDWR|O_CREAT, 0666);
@@ -263,6 +275,3 @@ int main(){
 
     }
 }
-
-
-
