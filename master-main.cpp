@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <unordered_map>
 int PAGE_FAULT = 40;
+char tombstone[] = "_TOMBSTONE_";
 std::string get(char *key, int * directory_buffer, int current_fd_buffer_index, std::unordered_map<int, std::unordered_map<std::string, int*>> &master_map){
     int file_index = -1;
     printf("Current File Index %d \n", current_fd_buffer_index);
@@ -54,6 +55,10 @@ std::string get(char *key, int * directory_buffer, int current_fd_buffer_index, 
     found_value = (char*) malloc((size_of_value + 1) * sizeof(char));
     memcpy(found_value, current_file_buf + sizeof(int) + sizeof(int) + size_of_key, size_of_value);
     found_value[size_of_value] = '\0';
+    if (strcmp(tombstone, found_value) == 0){
+        std::string return_value = "Key Does Not Exist";
+        return return_value;
+    }
     std::string return_value(found_value);
     free(found_key);
     free(found_value);
@@ -265,6 +270,24 @@ int main(){
             std::cout << "Key: " << user_input_key << " -> Value: " << return_value << "\n";
             memset(command, 0, sizeof(command));
             free(user_input_key);
+            memset(temp_buffer, 0, 1000);
+        }
+        else if (strcmp(command, "DEL") == 0){
+            printf("Enter Key: ");
+            scanf("%999s", temp_buffer);
+            length = strlen(temp_buffer);
+            user_input_key = (char *) malloc((length+1)* sizeof(char));
+            strcpy(user_input_key, temp_buffer);
+            int return_error = set(user_input_key, tombstone, master_map[current_fd_buffer_index], 
+            fd);
+            if (return_error == -1){
+                printf("Error occured Deleting Key & Value\n");
+            }
+            else{
+                printf("Succesfully Deleted Key: %s \n", user_input_key);
+            }
+            free(user_input_key);
+            memset(command, 0, sizeof(command));
             memset(temp_buffer, 0, 1000);
 
         }
