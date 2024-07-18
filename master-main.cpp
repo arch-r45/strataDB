@@ -243,9 +243,9 @@ int main(){
                 int fd = open(path, O_RDWR|O_CREAT, 0666);
                 memset(path, 0, 256);
                 std::unordered_map<std::string, int*> map;
-                master_map[current_fd_buffer_index] = map;
+                master_map[directory_buffer[current_fd_buffer_index]] = map;
             }
-            int return_error = set(user_input_key, user_input_value, master_map[current_fd_buffer_index], 
+            int return_error = set(user_input_key, user_input_value, master_map[directory_buffer[current_fd_buffer_index]], 
             fd);
 
             if (return_error == -1){
@@ -278,7 +278,7 @@ int main(){
             length = strlen(temp_buffer);
             user_input_key = (char *) malloc((length+1)* sizeof(char));
             strcpy(user_input_key, temp_buffer);
-            int return_error = set(user_input_key, tombstone, master_map[current_fd_buffer_index], 
+            int return_error = set(user_input_key, tombstone, master_map[directory_buffer[current_fd_buffer_index]], 
             fd);
             if (return_error == -1){
                 printf("Error occured Deleting Key & Value\n");
