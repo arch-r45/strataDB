@@ -8,6 +8,7 @@
 #include <unordered_map>
 int PAGE_FAULT = 40;
 char tombstone[] = "_TOMBSTONE_";
+int FILE_LIMIT = 5;
 std::string get(char *key, int * directory_buffer, int current_fd_buffer_index, std::unordered_map<int, std::unordered_map<std::string, int*>> &master_map){
     int file_index = -1;
     printf("Current File Index %d \n", current_fd_buffer_index);
@@ -100,6 +101,46 @@ int set(char * key, char * value, std::unordered_map<std::string, int*> &map, in
     memset(buf, 0, PAGE_SIZE);
     return -1;
 }
+
+void compaction(int *directory_buffer, int current_fd_buffer_index, std::unordered_map<int, std::unordered_map<std::string, int*>> &master_map){
+    std::unordered_map<std::string, std::string> temp_map;
+    char path [256];
+    int fd;
+    char file_buffer [1024];
+    for (int i = 0; i < current_fd_buffer_index; i++){
+        snprintf(path, sizeof(path), "db/%d", directory_buffer[i]);
+        fd = open(path, O_RDONLY, 0666);
+        lseek(fd, 0L, 0);
+        int bytes_read = read(fd, file_buffer, 1024);
+        int key_size;
+        int value_size;
+        int j = 0;
+        while (j < bytes_read){
+            memcpy(&key_size, file_buffer + j, sizeof(int));
+            memcpy(&value_size, file_buffer+ j + sizeof(int), sizeof(int));
+            char * key = (char*) malloc(key_size+1);
+            char * value = (char *) malloc(value_size+1);
+            memcpy(key, file_buffer + j + sizeof(int) + sizeof(int), key_size);
+            memcpy(value, file_buffer + j + sizeof(int) + sizeof(int) + key_size, value_size);
+            key[key_size] = '\0';
+            value[value_size] = '\0';
+            printf("Key: %s\n", key);
+            printf("Value %s \n", value);
+            printf("Key Size: %d \n", key_size);
+            printf("Value Size %d \n", value_size);
+            if (strcmp(value, tombstone) != 0){
+                std::string s(key);
+                std::string v(value);
+                temp_map[s] = value;
+            }
+            j = j + sizeof(int) + sizeof(int) + key_size + value_size;
+            free(key);
+            free(value);
+        }
+    }
+
+}
+
 int main(){
     int dir_fd = open("db/directory", O_RDWR|O_CREAT, 0666);
     if (dir_fd == -1){
@@ -188,9 +229,7 @@ int main(){
                 printf("bug\n");
             }
             current_fd_buffer_index = i;
-
         }
-
         char path[256];
         snprintf(path, sizeof(path), "db/%d", directory_buffer[file_descriptors_written-1]);
         fd = open(path, O_RDWR, 0);
@@ -244,6 +283,9 @@ int main(){
                 memset(path, 0, 256);
                 std::unordered_map<std::string, int*> map;
                 master_map[directory_buffer[current_fd_buffer_index]] = map;
+                if (current_fd_buffer_index >= FILE_LIMIT){
+                    compaction(directory_buffer, current_fd_buffer_index, master_map);
+                }
             }
             int return_error = set(user_input_key, user_input_value, master_map[directory_buffer[current_fd_buffer_index]], 
             fd);
