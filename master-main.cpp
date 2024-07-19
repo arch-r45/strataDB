@@ -8,8 +8,9 @@
 #include <unordered_map>
 int PAGE_FAULT = 40;
 char tombstone[] = "_TOMBSTONE_";
-int FILE_LIMIT = 3;
-std::string get(char *key, int * directory_buffer, int current_fd_buffer_index, std::unordered_map<int, std::unordered_map<std::string, int*>> &master_map){
+int FILE_LIMIT = 2;
+std::unordered_map<int, std::unordered_map<std::string, int*>> master_map;
+std::string get(char *key, int * directory_buffer, int current_fd_buffer_index){
     int file_index = -1;
     printf("Current File Index %d \n", current_fd_buffer_index);
     printf("current Fd Buffer Index %d\n", current_fd_buffer_index);
@@ -29,8 +30,8 @@ std::string get(char *key, int * directory_buffer, int current_fd_buffer_index, 
     int fd = open(path, O_RDONLY, 0);
     printf("opening file %d", fd);
     memset(path, 0, 256);
-    printf("Memory Location of master_map key %p \n", master_map[directory_buffer[file_index]][key]);
-    int *arr = master_map[directory_buffer[file_index]][key];
+    printf("Memory Location of master_map key %p \n", master_map[file_index][key]);
+    int *arr = master_map[file_index][key];
     int offset = arr[0];
     int length_of_record = arr[1];
     printf("offset: %d and Length of record: %d\n", offset, length_of_record);
@@ -104,8 +105,7 @@ int set(char * key, char * value, std::unordered_map<std::string, int*> &map, in
     return -1;
 }
 
-void compaction(int *directory_buffer, int &current_fd_buffer_index, std::unordered_map<int, std::unordered_map<std::string, int*>> &master_map,
-int dir_fd){
+void compaction(int *directory_buffer, int &current_fd_buffer_index, int dir_fd, size_t directory_buffer_size){
     std::unordered_map<std::string, std::string> temp_map;
     char path [256];
     int current_fd_buffer_index_copy = current_fd_buffer_index;
@@ -147,8 +147,8 @@ int dir_fd){
         }
     }
     directory_buffer[current_fd_buffer_index_copy + 1] = directory_buffer[current_fd_buffer_index_copy]+1;
+    current_fd_buffer_index_copy ++;
     printf("New Fd_buffer_index: %d \n", current_fd_buffer_index_copy);
-    int dir_byte_count = sizeof(directory_buffer);
     lseek(dir_fd, 0L, 2);
     int new_bytes = write(dir_fd, &directory_buffer[current_fd_buffer_index_copy],(sizeof(int)));
     printf("new_bytes %d \n", new_bytes);
@@ -166,13 +166,19 @@ int dir_fd){
         char *value = (char *) malloc ((pair.second.size() + 1) * sizeof(char));
         std::strcpy(key, pair.first.c_str());
         std::strcpy(value, pair.second.c_str());
-        set(key, value, map, fd);
+        lseek(fd, 0L, 2);
+        set(key, value, master_map[directory_buffer[current_fd_buffer_index_copy]], fd);
         lseek(fd, 0L, 0);
         int bytes_count = read(fd, new_file_buf, 1024);
         printf("Current buffer index postwrite %d", current_fd_buffer_index_copy);
         printf("Bytes Read after Lseek %d \n", bytes_count);
+        std::string return_value = get(key, directory_buffer, current_fd_buffer_index_copy);
+        std::cout << "Return Value, " << return_value << "\n";
+        free(key);
+        free(value);
         if (bytes_count > PAGE_FAULT){
             directory_buffer[current_fd_buffer_index_copy + 1] = directory_buffer[current_fd_buffer_index_copy]+1;
+            current_fd_buffer_index_copy ++;
             printf("New Fd_buffer_index: %d \n", current_fd_buffer_index_copy);
             int dir_byte_count = sizeof(directory_buffer);
             lseek(dir_fd, 0L, 2);
@@ -187,6 +193,7 @@ int dir_fd){
         }
         memset(new_file_buf, 0, 1024);
     }
+    lseek(fd, 0L, 2);
     int new_directory_buffer [1024];
     int j = 0;
     for (int i = original_buffer_index; i < current_fd_buffer_index_copy+1;i++){
@@ -206,9 +213,9 @@ int dir_fd){
     }
     current_fd_buffer_index = current_fd_buffer_index_copy - current_fd_buffer_index;
     printf("Current Fd Buffer Index %d \n", current_fd_buffer_index);
-    memcpy(directory_buffer, new_directory_buffer, sizeof(new_directory_buffer));
-    printf("size of directory buffer %lu\n", sizeof(directory_buffer));
-    write(dir_fd, new_directory_buffer, sizeof(directory_buffer));
+    memcpy(directory_buffer, new_directory_buffer, directory_buffer_size);
+    printf("size of directory buffer %lu\n", directory_buffer_size);
+    write(dir_fd, new_directory_buffer, directory_buffer_size);
 }
 int main(){
     int dir_fd = open("db/directory", O_RDWR|O_CREAT, 0666);
@@ -219,11 +226,9 @@ int main(){
     int directory_buffer [1024];
     int bytes_read_dir = read(dir_fd, directory_buffer, 1024);
     printf("Bytes Read Directory %d\n", bytes_read_dir);
-
     int current_fd_buffer_index = -1;
     int fd;
     size_t dir_byte_count;
-    std::unordered_map<int, std::unordered_map<std::string, int*>> master_map;
     if (bytes_read_dir == 0){
         /*
         Need to create a directory and original hash_map for files based on fd
@@ -245,7 +250,6 @@ int main(){
         /*
         Construction of Keydir in memory hash map based on log files
         */
-
         printf("Else Case \n");
         int file_descriptors_written = bytes_read_dir / sizeof(int);
         printf("file descriptors Written %d \n", file_descriptors_written);
@@ -261,7 +265,6 @@ int main(){
             int key_size;
             int value_size;
             int j = 0;
-
             while (j < bytes_read){
                 memcpy(&key_size, file_buffer + j, sizeof(int));
                 memcpy(&value_size, file_buffer+ j + sizeof(int), sizeof(int));
@@ -352,11 +355,12 @@ int main(){
                 std::unordered_map<std::string, int*> map;
                 master_map[directory_buffer[current_fd_buffer_index]] = map;
                 if (current_fd_buffer_index >= FILE_LIMIT){
-                    compaction(directory_buffer, current_fd_buffer_index, master_map, dir_fd);
+                    compaction(directory_buffer, current_fd_buffer_index, dir_fd, sizeof(directory_buffer));
                     printf("Current Fd File Index Outside of compaction %d \n", current_fd_buffer_index);
-                    printf("Size of directory_buffer Outside of Compaction %lu \n", sizeof(directory_buffer));
+                    printf("Current size of directory buffer %lu \n", sizeof(directory_buffer) / sizeof(int));
                 }
             }
+            printf("directory buffer of current file index %d\n", directory_buffer[current_fd_buffer_index]);
             int return_error = set(user_input_key, user_input_value, master_map[directory_buffer[current_fd_buffer_index]], 
             fd);
 
@@ -378,7 +382,10 @@ int main(){
             length = strlen(temp_buffer);
             user_input_key = (char *) malloc((length+1)* sizeof(char));
             strcpy(user_input_key, temp_buffer);
-            std::string return_value = get(user_input_key, directory_buffer, current_fd_buffer_index, master_map);
+            printf("Directory buffer of current file index, %d\n", directory_buffer[current_fd_buffer_index]);
+            printf("Current fd index %d \n", current_fd_buffer_index);
+            printf("Current size of directory buffer %lu \n", sizeof(directory_buffer) / sizeof(int));
+            std::string return_value = get(user_input_key, directory_buffer, current_fd_buffer_index);
             std::cout << "Key: " << user_input_key << " -> Value: " << return_value << "\n";
             memset(command, 0, sizeof(command));
             free(user_input_key);
