@@ -97,6 +97,7 @@ int main(){
     printf("val %d \n", val);
     val = get_value(map, 4);
     printf("val %d \n", val);
+    free(map.hash_map);
 }
 
 
