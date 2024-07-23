@@ -7,7 +7,6 @@ typedef struct {
     int key;
     int value;
 }map_item;
-
 typedef struct{
     map_item * hash_map;
     int current_occupation;
@@ -37,7 +36,6 @@ int add_key(static_hash_map &map, int key, int value){
     printf("Hash Function %d \n", hash_value);
     printf("actual key %d \n", key);
     printf("Hash key %d \n", map.hash_map[hash_value].key);
-
     while (map.hash_map[hash_value].key != -1 & map.hash_map[hash_value].value != -1){
         printf("Hash Function %d \n", hash_value);
         if (hash_value + 1 == map.total_size){
@@ -52,6 +50,7 @@ int add_key(static_hash_map &map, int key, int value){
     mapping.value = value;
 
     map.hash_map[hash_value] = mapping;
+    map.current_occupation ++;
     return 0;
 }
 int get_value(static_hash_map &map, int key){
@@ -75,29 +74,19 @@ int get_value(static_hash_map &map, int key){
 }
 
 void print_hash_map(static_hash_map &map){
+    printf("current occupation %d\n", map.current_occupation);
     printf("{");
+    int printed_keys = 0;
     for (int i=0; i < map.total_size; i++){
         if (map.hash_map[i].key != -1){
-            printf(",");
-            printf("%d: %d", map.hash_map[i].key, map.hash_map[i].value);
+            printed_keys ++;
+            printf("%d:%d", map.hash_map[i].key, map.hash_map[i].value);
+            if (printed_keys != map.current_occupation){
+                printf(",");
+            }
         }
     }
     printf("}\n");
-}
-int main(){
-    static_hash_map map = construct_hash_map(10);
-    add_key(map, 1, 3);
-    add_key(map, 4, 9);
-    add_key(map, 55, 2018);
-    add_key(map, 17, 90);
-    add_key(map, 2011121, 3);
-    print_hash_map(map);
-
-    int val = get_value(map, 2011121);
-    printf("val %d \n", val);
-    val = get_value(map, 4);
-    printf("val %d \n", val);
-    free(map.hash_map);
 }
 
 
