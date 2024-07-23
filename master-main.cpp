@@ -69,8 +69,12 @@ std::string get(char *key, int * directory_buffer, int current_fd_buffer_index){
     free(current_file_buf);
     return return_value;
 }
-int set(char * key, char * value, std::unordered_map<std::string, int*> &map, int fd){
+int set(char * key, char * value, std::unordered_map<std::string, int*> &map, int file_number){
+    char path[256];
+    snprintf(path, sizeof(path), "db/%d", file_number);    
+    int fd = open(path, O_RDWR|O_CREAT, 0666);
     printf("fd of Setter %d \n", fd);
+    memset(path, 0, 256);
     int PAGE_SIZE = 4096;
     char buf[PAGE_SIZE];
     int *arr = (int *)malloc(2 * sizeof(int));
@@ -89,6 +93,7 @@ int set(char * key, char * value, std::unordered_map<std::string, int*> &map, in
     printf("Byte Offset in File %ld \n", pos);
     int bytes_written;
     bytes_written = write(fd, buf, total_length);
+    close(fd);
     printf("Bytes Written %d \n", bytes_written);
     if (bytes_written == total_length){
         printf("Success \n");
@@ -110,6 +115,7 @@ void compaction(int *directory_buffer, int &current_fd_buffer_index, int dir_fd,
     char path [256];
     int current_fd_buffer_index_copy = current_fd_buffer_index;
     int original_buffer_index = current_fd_buffer_index_copy;
+    printf("Original Buffer at start of compaction %d\n", original_buffer_index);
     int fd;
     char file_buffer [1024];
     int deleted_group [current_fd_buffer_index_copy];
@@ -167,7 +173,7 @@ void compaction(int *directory_buffer, int &current_fd_buffer_index, int dir_fd,
         std::strcpy(key, pair.first.c_str());
         std::strcpy(value, pair.second.c_str());
         lseek(fd, 0L, 2);
-        set(key, value, master_map[directory_buffer[current_fd_buffer_index_copy]], fd);
+        set(key, value, master_map[directory_buffer[current_fd_buffer_index_copy]], directory_buffer[current_fd_buffer_index_copy]);
         lseek(fd, 0L, 0);
         int bytes_count = read(fd, new_file_buf, 1024);
         printf("Current buffer index postwrite %d", current_fd_buffer_index_copy);
@@ -214,11 +220,11 @@ void compaction(int *directory_buffer, int &current_fd_buffer_index, int dir_fd,
     //fix this
     printf("Original Buffer Index %d\n", original_buffer_index);
     printf("new buffer index %d\n",current_fd_buffer_index_copy);
-    current_fd_buffer_index = current_fd_buffer_index_copy - original_buffer_index+1;
+    current_fd_buffer_index = current_fd_buffer_index_copy - (original_buffer_index+1);
     printf("Current Fd Buffer Index %d \n", current_fd_buffer_index);
-    memcpy(directory_buffer, new_directory_buffer, sizeof(int) * (current_fd_buffer_index));
-    printf("size of directory buffer %lu\n", sizeof(int) * (current_fd_buffer_index));
-    int new_bytes_new = write(dir_fd, new_directory_buffer, sizeof(int) * (current_fd_buffer_index));
+    memcpy(directory_buffer, new_directory_buffer, sizeof(int) * (current_fd_buffer_index+1));
+    printf("size of directory buffer %lu\n", sizeof(int) * (current_fd_buffer_index+1));
+    int new_bytes_new = write(dir_fd, new_directory_buffer, sizeof(int) * (current_fd_buffer_index+1));
     printf("New Bytes: %d \n", new_bytes_new);
 }
 int main(){
@@ -319,6 +325,9 @@ int main(){
     //int size_in_bytes = read(fd, current_file_buffer, 1024);
     while(1){
         lseek(fd, 0L, 0);
+        char path[256];
+        snprintf(path, sizeof(path), "db/%d", directory_buffer[current_fd_buffer_index]);
+        fd = open(path, O_RDWR|O_CREAT, 0666);
         int size_in_bytes = read(fd, current_file_buffer, 1024);
         printf("size_in_bytes of file %d \n", size_in_bytes);
         printf("Get OR Set: ");
@@ -358,7 +367,12 @@ int main(){
                 printf("new_bytes %d \n", new_bytes);
                 char path[256];
                 snprintf(path, sizeof(path), "db/%d", directory_buffer[current_fd_buffer_index]);
+                for (int p = 0; p < current_fd_buffer_index+1; p++){
+                    printf("index: %d, file number: %d \n", p, directory_buffer[p]);
+                }
                 int fd = open(path, O_RDWR|O_CREAT, 0666);
+                close(fd);
+                printf("file fd %d \n", fd);
                 memset(path, 0, 256);
                 std::unordered_map<std::string, int*> map;
                 master_map[directory_buffer[current_fd_buffer_index]] = map;
@@ -371,8 +385,7 @@ int main(){
                 */
             }
             printf("directory buffer of current file index %d\n", directory_buffer[current_fd_buffer_index]);
-            int return_error = set(user_input_key, user_input_value, master_map[directory_buffer[current_fd_buffer_index]], 
-            fd);
+            int return_error = set(user_input_key, user_input_value, master_map[directory_buffer[current_fd_buffer_index]], directory_buffer[current_fd_buffer_index]);
 
             if (return_error == -1){
                 printf("Error occured inserting Key & Value\n");
@@ -408,7 +421,7 @@ int main(){
             user_input_key = (char *) malloc((length+1)* sizeof(char));
             strcpy(user_input_key, temp_buffer);
             int return_error = set(user_input_key, tombstone, master_map[directory_buffer[current_fd_buffer_index]], 
-            fd);
+            directory_buffer[current_fd_buffer_index]);
             if (return_error == -1){
                 printf("Error occured Deleting Key & Value\n");
             }
@@ -423,6 +436,7 @@ int main(){
             memset(command, 0, sizeof(command));
             continue;
         }
+        close(fd);
 
     }
 }
