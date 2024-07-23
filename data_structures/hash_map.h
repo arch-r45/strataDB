@@ -56,12 +56,15 @@ int add_key(static_hash_map &map, int key, int value){
 int get_value(static_hash_map &map, int key){
     int hash_value = hash_function(key, map.total_size);
     int original_hash = hash_value;
-    while (map.hash_map[hash_value].key != -1 & map.hash_map[hash_value].value != -1){
+    while (map.hash_map[hash_value].key != -1){
         if (hash_value == original_hash -1){
-            return -1;
+            break;
         }
-        if (map.hash_map[hash_value].key == key){
+        if (map.hash_map[hash_value].key == key && map.hash_map[hash_value].value != -1){
             return map.hash_map[hash_value].value;
+        }
+        if (map.hash_map[hash_value].key == key && map.hash_map[hash_value].value == -1){
+            break;
         }
         if (hash_value + 1 == map.total_size){
             hash_value = 0;
@@ -70,7 +73,35 @@ int get_value(static_hash_map &map, int key){
             hash_value ++;
         }   
         }
+    printf("No value Found for key %d \n", key);
     return -1;
+}
+int get_size(static_hash_map &map){
+    return map.current_occupation;
+
+}
+int delete_key(static_hash_map &map, int key){
+    int hash_value = hash_function(key, map.total_size);
+    int original_hash = hash_value;
+    while (map.hash_map[hash_value].key != -1){
+        if (hash_value == original_hash -1){
+            break;
+        }
+        if (map.hash_map[hash_value].key == key){
+            map.hash_map[hash_value].value = -1;
+            return 1;
+        }
+        if (hash_value + 1 == map.total_size){
+            hash_value = 0;
+        }
+        else{
+            hash_value ++;
+        }
+    }
+    printf("Deleted key: %d not found \n", key);
+    return -1;
+
+
 }
 
 void print_hash_map(static_hash_map &map){

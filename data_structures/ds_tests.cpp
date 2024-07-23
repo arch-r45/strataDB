@@ -22,10 +22,24 @@ int test1(){
     val = get_value(map, 4);
     if (val != 9){
         failure = 0;
-        printf("val %d does not equal key %d \n", 4, 9);
+        printf("val %d does not equal key %d \n", val, 9);
     }
     printf("val %d \n", val);
+    val = get_size(map);
+    if (val != 5){
+        failure = 0;
+        printf("val %d does not equal size %d \n", val, 5);
+    }
+    printf("Size %d \n", val);
+    delete_key(map, 1);
+    delete_key(map, 4);
+    val = get_value(map, 4);
+    if (val != -1){
+        failure = 0;
+        printf("key: %d not deleted  \n", 4);
+    }
     free(map.hash_map);
+
     return failure;
 }
 
