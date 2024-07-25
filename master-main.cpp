@@ -9,6 +9,12 @@
 int PAGE_FAULT = 40;
 char tombstone[] = "_TOMBSTONE_";
 int FILE_LIMIT = 3;
+int directory_buffer [1024];
+int current_fd_buffer_index = -1;
+size_t dir_byte_count;
+int dir_fd;
+
+
 std::unordered_map<int, std::unordered_map<std::string, int*>> master_map;
 std::string get(char *key, int * directory_buffer, int current_fd_buffer_index){
     int file_index = -1;
@@ -225,18 +231,15 @@ void compaction(int *directory_buffer, int &current_fd_buffer_index, int dir_fd,
     int new_bytes_new = write(dir_fd, new_directory_buffer, sizeof(int) * (current_fd_buffer_index+1));
     printf("New Bytes: %d \n", new_bytes_new);
 }
-int main(){
-    int dir_fd = open("db/directory", O_RDWR|O_CREAT, 0666);
+int construct_hash_map_from_directory(){
+    dir_fd = open("db/directory", O_RDWR|O_CREAT, 0666);
     if (dir_fd == -1){
         printf("File Could not be opened\n");
         return -1;
     }
-    int directory_buffer [1024];
     int bytes_read_dir = read(dir_fd, directory_buffer, 1024);
     printf("Bytes Read Directory %d\n", bytes_read_dir);
-    int current_fd_buffer_index = -1;
     int fd;
-    size_t dir_byte_count;
     if (bytes_read_dir == 0){
         /*
         Need to create a directory and original hash_map for files based on fd
@@ -300,26 +303,28 @@ int main(){
                 free(value);
             }
             close(fd);
-            std::string patch = "Rogan";
-            if (master_map[directory_buffer[i]].find(patch) != master_map[directory_buffer[i]].end()){
-                printf("Found \n");
-            }
-            else{
-                printf("bug\n");
-            }
             current_fd_buffer_index = i;
         }
-        char path[256];
-        snprintf(path, sizeof(path), "db/%d", directory_buffer[file_descriptors_written-1]);
-        fd = open(path, O_RDWR, 0);
-        memset(path, 0, 256);
     }
+    return 0;
+}
+int main(){
+    int return_value = construct_hash_map_from_directory();
+    if (return_value == -1){
+        return -1;
+    }
+    char path[256];
+    snprintf(path, sizeof(path), "db/%d", directory_buffer[current_fd_buffer_index]);
+    int fd = open(path, O_RDWR, 0);
+    memset(path, 0, 256);
+    
     char command[3];
     char temp_buffer [1000];
     char* user_input_key;
     char * user_input_value;
     size_t length;
     char current_file_buffer [1024];
+    
     //int size_in_bytes = read(fd, current_file_buffer, 1024);
     while(1){
         lseek(fd, 0L, 0);
