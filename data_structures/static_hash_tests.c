@@ -2,10 +2,10 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <unistd.h>
-#include <iostream>
 #include "hash_map.h"
+#include <stdlib.h>
 int test1(){
-    static_hash_map map = construct_hash_map(10);
+    static_hash_map *map= construct_hash_map(10);
     int failure = 1;
     add_key(map, 1, 3);
     add_key(map, 4, 9);
@@ -40,13 +40,13 @@ int test1(){
     }
     val = get_size(map);
     printf("Val: %d\n", val);
-    free(map.hash_map);
+    free_memory_hash_map(map);
     return failure;
 }
 
 
 int test2(){
-    static_hash_map map = construct_hash_map(20);
+    static_hash_map *map = construct_hash_map(20);
     int failure = 1;
     add_key(map, 2, 8);
     add_key(map, 8, 64);
@@ -81,13 +81,13 @@ int test2(){
     }
     val = get_size(map);
     printf("Val: %d\n", val);
+    free_memory_hash_map(map);
 
-    free(map.hash_map);
     return failure;
 }
 
 int test3(){
-    static_hash_map map = construct_hash_map(15);
+    static_hash_map* map = construct_hash_map(15);
     int failure = 1;
     add_key(map, 10, 100);
     add_key(map, 20, 200);
@@ -123,13 +123,13 @@ int test3(){
     }
     val = get_size(map);
     printf("Val: %d\n", val);
+    free_memory_hash_map(map);
 
-    free(map.hash_map);
     return failure;
 }
 
 int test4(){
-    static_hash_map map = construct_hash_map(10);
+    static_hash_map* map = construct_hash_map(10);
     int failure = 1;
     // Assuming the hash function may cause collision for these keys
     add_key(map, 11, 111);
@@ -157,12 +157,12 @@ int test4(){
     }
     printf("Size %d \n", val);
 
-    free(map.hash_map);
+    free_memory_hash_map(map);
     return failure;
 }
 
 int test5(){
-    static_hash_map map = construct_hash_map(10);
+    static_hash_map* map = construct_hash_map(10);
     int failure = 1;
     add_key(map, 5, 25);
     add_key(map, 5, 50);
@@ -181,12 +181,13 @@ int test5(){
         printf("val %d does not equal size %d \n", val, 1);
     }
     printf("Size %d \n", val);
-
-    free(map.hash_map);
+    free_memory_hash_map(map);
     return failure;
 }
 int test6(){
-    static_hash_map map = construct_hash_map(10);
+    printf("test 6 started \n");
+
+    static_hash_map* map = construct_hash_map(10);
     int failure = 1;
     add_key(map, 7, 14);
     delete_key(map, 20); // Deleting non-existent key
@@ -206,11 +207,12 @@ int test6(){
     }
     printf("Size %d \n", val);
 
-    free(map.hash_map);
+    free_memory_hash_map(map);
+
     return failure;
 }
 int test7(){
-    static_hash_map map = construct_hash_map(100);
+    static_hash_map* map = construct_hash_map(100);
     int failure = 1;
     for (int i = 1; i < 100; i++){
         add_key(map, i, i*10);
@@ -231,7 +233,8 @@ int test7(){
     }
     printf("Size %d \n", val);
 
-    free(map.hash_map);
+    free_memory_hash_map(map);
+
     return failure;
 }
 
@@ -275,6 +278,7 @@ void run_tests(){
 }
 
 int main(){
+    printf("Started");
     run_tests();
     return 1;
 }

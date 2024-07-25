@@ -109,7 +109,6 @@ int set(char * key, char * value, std::unordered_map<std::string, int*> &map, in
     memset(buf, 0, PAGE_SIZE);
     return -1;
 }
-
 void compaction(int *directory_buffer, int &current_fd_buffer_index, int dir_fd, size_t directory_buffer_size){
     std::unordered_map<std::string, std::string> temp_map;
     char path [256];
@@ -217,7 +216,6 @@ void compaction(int *directory_buffer, int &current_fd_buffer_index, int dir_fd,
         remove(path);
         memset(path, 0, 256);
     }
-    //fix this
     printf("Original Buffer Index %d\n", original_buffer_index);
     printf("new buffer index %d\n",current_fd_buffer_index_copy);
     current_fd_buffer_index = current_fd_buffer_index_copy - (original_buffer_index+1);
@@ -437,6 +435,5 @@ int main(){
             continue;
         }
         close(fd);
-
     }
 }
