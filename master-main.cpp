@@ -6,6 +6,13 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <unordered_map>
+int construct_hash_map_from_directory();
+std::string get(char *key, int * directory_buffer, int current_fd_buffer_index);
+void check_page_fault();
+int set(char * key, char * value, std::unordered_map<std::string, int*> &map, int file_number, bool compaction);
+void compaction(int *directory_buffer, int &current_fd_buffer_index, int dir_fd, size_t directory_buffer_size);
+int construct_hash_map_from_directory();
+int command_line_interface();
 int PAGE_FAULT = 40;
 char tombstone[] = "_TOMBSTONE_";
 int FILE_LIMIT = 3;
@@ -13,8 +20,6 @@ int directory_buffer [1024];
 int current_fd_buffer_index = -1;
 size_t dir_byte_count;
 int dir_fd;
-
-
 std::unordered_map<int, std::unordered_map<std::string, int*>> master_map;
 std::string get(char *key, int * directory_buffer, int current_fd_buffer_index){
     int file_index = -1;
@@ -75,7 +80,60 @@ std::string get(char *key, int * directory_buffer, int current_fd_buffer_index){
     free(current_file_buf);
     return return_value;
 }
-int set(char * key, char * value, std::unordered_map<std::string, int*> &map, int file_number){
+void check_page_fault(){
+    char current_file_buffer [1024];
+    int fd;
+    char path[256];
+    snprintf(path, sizeof(path), "db/%d", directory_buffer[current_fd_buffer_index]);
+    fd = open(path, O_RDWR|O_CREAT, 0666);
+    lseek(fd, 0L, 0);
+    int size_in_bytes = read(fd, current_file_buffer, 1024);
+    printf("size_in_bytes of file %d \n", size_in_bytes);
+    printf("Size of Bytes %d --> Page Fault %d \n", size_in_bytes, PAGE_FAULT);
+    if (size_in_bytes >= PAGE_FAULT){
+        printf("Changing Page");
+        close(fd);
+        if (current_fd_buffer_index >= FILE_LIMIT){
+            compaction(directory_buffer, current_fd_buffer_index, dir_fd, sizeof(directory_buffer));
+            printf("Current Fd File Index Outside of compaction %d \n", current_fd_buffer_index);
+        }
+        /*
+        The last file is now essentially immutable, it will never be written to again
+        Only read from
+        */
+        printf("Current Fd_buffer_index: %d \n", current_fd_buffer_index);
+        directory_buffer[current_fd_buffer_index + 1] = directory_buffer[current_fd_buffer_index]+1;
+        current_fd_buffer_index ++;
+        printf("New Fd_buffer_index: %d \n", current_fd_buffer_index);
+        dir_byte_count = sizeof(directory_buffer);
+        lseek(dir_fd, 0L, 2);
+        int new_bytes = write(dir_fd, &directory_buffer[current_fd_buffer_index],(sizeof(int)));
+        printf("new_bytes %d \n", new_bytes);
+        char path[256];
+        snprintf(path, sizeof(path), "db/%d", directory_buffer[current_fd_buffer_index]);
+        for (int p = 0; p < current_fd_buffer_index+1; p++){
+            printf("index: %d, file number: %d \n", p, directory_buffer[p]);
+        }
+        int fd = open(path, O_RDWR|O_CREAT, 0666);
+        close(fd);
+        printf("file fd %d \n", fd);
+        memset(path, 0, 256);
+        std::unordered_map<std::string, int*> map;
+        master_map[directory_buffer[current_fd_buffer_index]] = map;
+        /*
+        if (current_fd_buffer_index >= FILE_LIMIT){
+            compaction(directory_buffer, current_fd_buffer_index, dir_fd, sizeof(directory_buffer));
+            printf("Current Fd File Index Outside of compaction %d \n", current_fd_buffer_index);
+            printf("Current size of directory buffer %lu \n", sizeof(directory_buffer) / sizeof(int));
+        }
+        */
+    }
+
+}
+int set(char * key, char * value, std::unordered_map<std::string, int*> &map, int file_number, bool compaction){
+    if (compaction == false){
+        check_page_fault();
+    }
     char path[256];
     snprintf(path, sizeof(path), "db/%d", file_number);    
     int fd = open(path, O_RDWR|O_CREAT, 0666);
@@ -178,7 +236,7 @@ void compaction(int *directory_buffer, int &current_fd_buffer_index, int dir_fd,
         std::strcpy(key, pair.first.c_str());
         std::strcpy(value, pair.second.c_str());
         lseek(fd, 0L, 2);
-        set(key, value, master_map[directory_buffer[current_fd_buffer_index_copy]], directory_buffer[current_fd_buffer_index_copy]);
+        set(key, value, master_map[directory_buffer[current_fd_buffer_index_copy]], directory_buffer[current_fd_buffer_index_copy], true);
         lseek(fd, 0L, 0);
         int bytes_count = read(fd, new_file_buf, 1024);
         printf("Current buffer index postwrite %d", current_fd_buffer_index_copy);
@@ -308,137 +366,98 @@ int construct_hash_map_from_directory(){
     }
     return 0;
 }
-int main(){
-    int return_value = construct_hash_map_from_directory();
-    if (return_value == -1){
-        return -1;
-    }
-    char path[256];
-    snprintf(path, sizeof(path), "db/%d", directory_buffer[current_fd_buffer_index]);
-    int fd = open(path, O_RDWR, 0);
-    memset(path, 0, 256);
-    
-    char command[3];
-    char temp_buffer [1000];
-    char* user_input_key;
-    char * user_input_value;
-    size_t length;
-    char current_file_buffer [1024];
-    
-    //int size_in_bytes = read(fd, current_file_buffer, 1024);
-    while(1){
-        lseek(fd, 0L, 0);
+    int command_line_interface(){
+        int return_value = construct_hash_map_from_directory();
+        if (return_value == -1){
+            return -1;
+        }
         char path[256];
         snprintf(path, sizeof(path), "db/%d", directory_buffer[current_fd_buffer_index]);
-        fd = open(path, O_RDWR|O_CREAT, 0666);
-        int size_in_bytes = read(fd, current_file_buffer, 1024);
-        printf("size_in_bytes of file %d \n", size_in_bytes);
-        printf("Get OR Set: ");
-        scanf("%3s", command);
-        if (strcmp(command, "Set") == 0){
-            printf("Enter Key: ");
-            scanf("%999s", temp_buffer);
-            length = strlen(temp_buffer);
-            user_input_key = (char *) malloc((length+1)* sizeof(char));
-            strcpy(user_input_key, temp_buffer);
-            memset(temp_buffer, 0, 1000);
-            printf("Enter Value: ");
-            scanf("%999s", temp_buffer);
-            length = strlen(temp_buffer);
-            user_input_value = (char*)malloc((length +1) * sizeof(char));
-            strcpy(user_input_value, temp_buffer);
-            memset(temp_buffer, 0, 1000);
-            printf("Size of Bytes %d --> Page Fault %d \n", size_in_bytes, PAGE_FAULT);
-            if (size_in_bytes >= PAGE_FAULT){
-                printf("Changing Page");
-                close(fd);
-                if (current_fd_buffer_index >= FILE_LIMIT){
-                    compaction(directory_buffer, current_fd_buffer_index, dir_fd, sizeof(directory_buffer));
-                    printf("Current Fd File Index Outside of compaction %d \n", current_fd_buffer_index);
+        int fd = open(path, O_RDWR, 0);
+        memset(path, 0, 256);
+        char command[3];
+        char temp_buffer [1000];
+        char* user_input_key;
+        char * user_input_value;
+        size_t length;
+        while(1){
+            printf("Get OR Set: ");
+            scanf("%3s", command);
+            if (strcmp(command, "Set") == 0){
+                printf("Enter Key: ");
+                scanf("%999s", temp_buffer);
+                length = strlen(temp_buffer);
+                user_input_key = (char *) malloc((length+1)* sizeof(char));
+                strcpy(user_input_key, temp_buffer);
+                memset(temp_buffer, 0, 1000);
+                printf("Enter Value: ");
+                scanf("%999s", temp_buffer);
+                length = strlen(temp_buffer);
+                user_input_value = (char*)malloc((length +1) * sizeof(char));
+                strcpy(user_input_value, temp_buffer);
+                memset(temp_buffer, 0, 1000);
+                printf("directory buffer of current file index %d\n", directory_buffer[current_fd_buffer_index]);
+                int return_error = set(user_input_key, user_input_value, master_map[directory_buffer[current_fd_buffer_index]], directory_buffer[current_fd_buffer_index], false);
+                if (return_error == -1){
+                    printf("Error occured inserting Key & Value\n");
                 }
-                /*
-                The last file is now essentially immutable, it will never be written to again
-                Only read from
-                */
-                printf("Current Fd_buffer_index: %d \n", current_fd_buffer_index);
-                directory_buffer[current_fd_buffer_index + 1] = directory_buffer[current_fd_buffer_index]+1;
-                current_fd_buffer_index ++;
-                printf("New Fd_buffer_index: %d \n", current_fd_buffer_index);
-                dir_byte_count = sizeof(directory_buffer);
-                lseek(dir_fd, 0L, 2);
-                int new_bytes = write(dir_fd, &directory_buffer[current_fd_buffer_index],(sizeof(int)));
-                printf("new_bytes %d \n", new_bytes);
-                char path[256];
-                snprintf(path, sizeof(path), "db/%d", directory_buffer[current_fd_buffer_index]);
-                for (int p = 0; p < current_fd_buffer_index+1; p++){
-                    printf("index: %d, file number: %d \n", p, directory_buffer[p]);
-                }
-                int fd = open(path, O_RDWR|O_CREAT, 0666);
-                close(fd);
-                printf("file fd %d \n", fd);
-                memset(path, 0, 256);
-                std::unordered_map<std::string, int*> map;
-                master_map[directory_buffer[current_fd_buffer_index]] = map;
-                /*
-                if (current_fd_buffer_index >= FILE_LIMIT){
-                    compaction(directory_buffer, current_fd_buffer_index, dir_fd, sizeof(directory_buffer));
-                    printf("Current Fd File Index Outside of compaction %d \n", current_fd_buffer_index);
-                    printf("Current size of directory buffer %lu \n", sizeof(directory_buffer) / sizeof(int));
-                }
-                */
-            }
-            printf("directory buffer of current file index %d\n", directory_buffer[current_fd_buffer_index]);
-            int return_error = set(user_input_key, user_input_value, master_map[directory_buffer[current_fd_buffer_index]], directory_buffer[current_fd_buffer_index]);
+                else{
+                    printf("Succesfully Inserted Key: %s \n", user_input_key);
 
-            if (return_error == -1){
-                printf("Error occured inserting Key & Value\n");
+                }
+                memset(command, 0, sizeof(command));
+                free(user_input_key);
+                free(user_input_value);
+                memset(temp_buffer, 0, 1000);
+            }
+            else if (strcmp(command, "Get") == 0){
+                printf("Enter Key: ");
+                scanf("%999s", temp_buffer);
+                length = strlen(temp_buffer);
+                user_input_key = (char *) malloc((length+1)* sizeof(char));
+                strcpy(user_input_key, temp_buffer);
+                printf("Directory buffer of current file index, %d\n", directory_buffer[current_fd_buffer_index]);
+                printf("Current fd index %d \n", current_fd_buffer_index);
+                printf("Current size of directory buffer %lu \n", sizeof(directory_buffer) / sizeof(int));
+                std::string return_value = get(user_input_key, directory_buffer, current_fd_buffer_index);
+                std::cout << "Key: " << user_input_key << " -> Value: " << return_value << "\n";
+                memset(command, 0, sizeof(command));
+                free(user_input_key);
+                memset(temp_buffer, 0, 1000);
+            }
+            else if (strcmp(command, "DEL") == 0){
+                printf("Enter Key: ");
+                scanf("%999s", temp_buffer);
+                length = strlen(temp_buffer);
+                user_input_key = (char *) malloc((length+1)* sizeof(char));
+                strcpy(user_input_key, temp_buffer);
+                int return_error = set(user_input_key, tombstone,master_map[directory_buffer[current_fd_buffer_index]], 
+                directory_buffer[current_fd_buffer_index], false);
+                if (return_error == -1){
+                    printf("Error occured Deleting Key & Value\n");
+                }
+                else{
+                    printf("Succesfully Deleted Key: %s \n", user_input_key);
+                }
+                free(user_input_key);
+                memset(command, 0, sizeof(command));
+                memset(temp_buffer, 0, 1000);
             }
             else{
-                printf("Succesfully Inserted Key: %s \n", user_input_key);
-
+                memset(command, 0, sizeof(command));
+                continue;
             }
-            memset(command, 0, sizeof(command));
-            free(user_input_key);
-            free(user_input_value);
-            memset(temp_buffer, 0, 1000);
+            close(fd);
         }
-        else if (strcmp(command, "Get") == 0){
-            printf("Enter Key: ");
-            scanf("%999s", temp_buffer);
-            length = strlen(temp_buffer);
-            user_input_key = (char *) malloc((length+1)* sizeof(char));
-            strcpy(user_input_key, temp_buffer);
-            printf("Directory buffer of current file index, %d\n", directory_buffer[current_fd_buffer_index]);
-            printf("Current fd index %d \n", current_fd_buffer_index);
-            printf("Current size of directory buffer %lu \n", sizeof(directory_buffer) / sizeof(int));
-            std::string return_value = get(user_input_key, directory_buffer, current_fd_buffer_index);
-            std::cout << "Key: " << user_input_key << " -> Value: " << return_value << "\n";
-            memset(command, 0, sizeof(command));
-            free(user_input_key);
-            memset(temp_buffer, 0, 1000);
-        }
-        else if (strcmp(command, "DEL") == 0){
-            printf("Enter Key: ");
-            scanf("%999s", temp_buffer);
-            length = strlen(temp_buffer);
-            user_input_key = (char *) malloc((length+1)* sizeof(char));
-            strcpy(user_input_key, temp_buffer);
-            int return_error = set(user_input_key, tombstone, master_map[directory_buffer[current_fd_buffer_index]], 
-            directory_buffer[current_fd_buffer_index]);
-            if (return_error == -1){
-                printf("Error occured Deleting Key & Value\n");
-            }
-            else{
-                printf("Succesfully Deleted Key: %s \n", user_input_key);
-            }
-            free(user_input_key);
-            memset(command, 0, sizeof(command));
-            memset(temp_buffer, 0, 1000);
-        }
-        else{
-            memset(command, 0, sizeof(command));
-            continue;
-        }
-        close(fd);
+        return 0;
     }
+
+/*
+int main(){
+    int return_value = command_line_interface();
+
+    
 }
+
+
+*/
