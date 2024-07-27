@@ -9,10 +9,11 @@
 int construct_hash_map_from_directory();
 std::string get(char *key, int * directory_buffer, int current_fd_buffer_index);
 void check_page_fault();
-int set(char * key, char * value, std::unordered_map<std::string, int*> &map, int file_number, bool compaction);
+int set(char * key, char * value);
 void compaction(int *directory_buffer, int &current_fd_buffer_index, int dir_fd, size_t directory_buffer_size);
 int construct_hash_map_from_directory();
 int command_line_interface();
+int setter_for_compaction(char * key, char * value, std::unordered_map<std::string, int*> &map, int file_number);
 extern int PAGE_FAULT;
 extern char tombstone[];
 extern int FILE_LIMIT;

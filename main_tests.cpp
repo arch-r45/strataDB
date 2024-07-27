@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <unordered_map>
 #include "main.h"
+/*
 int test1(){
     int failure = 1;
     construct_hash_map_from_directory();
@@ -27,6 +28,7 @@ int test1(){
     }
     return failure;
 }
+*/
 int test2(){
     construct_hash_map_from_directory();
     int failure = 1;
@@ -36,7 +38,7 @@ int test2(){
         length = snprintf(NULL, 0, "%d", i);
         char *val = (char*)malloc(length+1);
         snprintf(val, length + 1, "%d", i);
-        set(key, val, master_map[directory_buffer[current_fd_buffer_index]], directory_buffer[current_fd_buffer_index], false);
+        set(key, val);
         free(val);
     }
     std::string return_value = get(key, directory_buffer, current_fd_buffer_index);
@@ -50,7 +52,7 @@ int test2(){
         length = snprintf(NULL, 0, "%d", i);
         char *val = (char*)malloc(length+1);
         snprintf(val, length + 1, "%d", i);
-        set(key2, val, master_map[directory_buffer[current_fd_buffer_index]], directory_buffer[current_fd_buffer_index], false);
+        set(key2, val);
         free(val);
 
     }
@@ -69,13 +71,17 @@ int test2(){
         length = snprintf(NULL, 0, "%d", i);
         char *val = (char*)malloc(length+1);
         snprintf(val, length + 1, "%d", i);
-        set(key, val, master_map[directory_buffer[current_fd_buffer_index]], directory_buffer[current_fd_buffer_index], false);
+        printf("i %d\n", i);
+        printf("current file number %d \n", directory_buffer[current_fd_buffer_index]);
+        set(key, val);
         free(val);
     }
+    printf("Dictionary %lu\n", master_map[5].count("Shea"));
+    printf("Dictionary %lu\n", master_map[6].count("Shea"));
     return_value = get(key, directory_buffer, current_fd_buffer_index);
     if (return_value != "2025"){
         failure = 0;
-        printf("Return Value = %s instead of %s \n", return_value.c_str(), "2017");
+        printf("Return Value = %s instead of %s \n", return_value.c_str(), "2025");
     }
     return failure;
 }

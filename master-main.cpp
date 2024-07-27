@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <unordered_map>
 int construct_hash_map_from_directory();
+int setter_for_compaction(char * key, char * value, std::unordered_map<std::string, int*> &map, int file_number);
 std::string get(char *key, int * directory_buffer, int current_fd_buffer_index);
 void check_page_fault();
 int set(char * key, char * value, std::unordered_map<std::string, int*> &map, int file_number, bool compaction);
@@ -118,8 +119,9 @@ void check_page_fault(){
         close(fd);
         printf("file fd %d \n", fd);
         memset(path, 0, 256);
-        std::unordered_map<std::string, int*> map;
-        master_map[directory_buffer[current_fd_buffer_index]] = map;
+        std::unordered_map<std::string, int*> &map = master_map[directory_buffer[current_fd_buffer_index]];
+        printf("File number %d\n", directory_buffer[current_fd_buffer_index]);
+        printf("Pointer to map %p \n", &map);
         /*
         if (current_fd_buffer_index >= FILE_LIMIT){
             compaction(directory_buffer, current_fd_buffer_index, dir_fd, sizeof(directory_buffer));
@@ -130,11 +132,11 @@ void check_page_fault(){
     }
 
 }
-int set(char * key, char * value, std::unordered_map<std::string, int*> &map, int file_number, bool compaction){
-    if (compaction == false){
-        check_page_fault();
-        file_number = directory_buffer[current_fd_buffer_index];
-    }
+int set(char * key, char * value){
+    check_page_fault();
+    int file_number = directory_buffer[current_fd_buffer_index];
+    printf("key %s\n", key);
+    printf("Value %s \n", value);
     char path[256];
     snprintf(path, sizeof(path), "db/%d", file_number);    
     int fd = open(path, O_RDWR|O_CREAT, 0666);
@@ -169,11 +171,60 @@ int set(char * key, char * value, std::unordered_map<std::string, int*> &map, in
         printf("Working\n");
         arr[1] = total_length;
         printf("Working\n");
+        printf("Array 1 %d \n", arr[1]);
+        master_map[file_number][s] = arr;
+        printf("Working\n");
+        memset(buf, 0, PAGE_SIZE);
+        return 0;
+    }
+    memset(buf, 0, PAGE_SIZE);
+    return -1;
+}
+
+int setter_for_compaction(char * key, char * value, std::unordered_map<std::string, int*> &map, int file_number){
+    printf("key %s\n", key);
+    printf("Value %s \n", value);
+    char path[256];
+    snprintf(path, sizeof(path), "db/%d", file_number);    
+    int fd = open(path, O_RDWR|O_CREAT, 0666);
+    printf("file path %d \n", file_number);
+    memset(path, 0, 256);
+    int PAGE_SIZE = 4096;
+    char buf[PAGE_SIZE];
+    int *arr = (int *)malloc(2 * sizeof(int));
+    int key_length = strlen(key);
+    int val_length = strlen(value);
+    memset(buf, 0, PAGE_SIZE);
+    memcpy(buf, &key_length, sizeof(int));
+    memcpy(buf + sizeof(int), &val_length, sizeof(int));
+    memcpy(buf + (2 * sizeof(int)), key, key_length);
+    memcpy(buf + (2* sizeof(int)) + key_length, value, val_length);
+    int total_length = (2 * sizeof(int)) + key_length + val_length;
+    buf[total_length] = '\0';
+    printf("Total Length: %d\n", total_length);
+    printf("Size of buf %lu\n", sizeof(buf));
+    long pos = lseek(fd, 0L, 2);
+    printf("Byte Offset in File %ld \n", pos);
+    int bytes_written;
+    bytes_written = write(fd, buf, total_length);
+    close(fd);
+    printf("Bytes Written %d \n", bytes_written);
+    if (bytes_written == total_length){
+        printf("Success \n");
+        std::string s(key);
+        std::cout << s << "string \n";
+        printf("Address of Pointer to array: %p\n", arr);
+        arr[0] = pos;
+        printf("Working\n");
+        arr[1] = total_length;
+        printf("Working\n");
+        printf("Array 1 %d \n", arr[1]);
         if (master_map.find(file_number) == master_map.end()){
             printf("Not Found");
             std::unordered_map<std::string, int*> map;
             master_map[directory_buffer[current_fd_buffer_index]] = map;
         }
+        printf("Pointer to map %p \n", &map);
         map[s] = arr;
         printf("Working\n");
         memset(buf, 0, PAGE_SIZE);
@@ -182,6 +233,10 @@ int set(char * key, char * value, std::unordered_map<std::string, int*> &map, in
     memset(buf, 0, PAGE_SIZE);
     return -1;
 }
+
+
+
+
 void compaction(int *directory_buffer, int &current_fd_buffer_index, int dir_fd, size_t directory_buffer_size){
     std::unordered_map<std::string, std::string> temp_map;
     char path [256];
@@ -234,8 +289,7 @@ void compaction(int *directory_buffer, int &current_fd_buffer_index, int dir_fd,
     printf("Path %s \n", path);
     fd = open(path, O_RDWR|O_CREAT, 0666);
     memset(path, 0, 256);
-    std::unordered_map<std::string, int*> map;
-    master_map[directory_buffer[current_fd_buffer_index_copy]] = map;
+    std::unordered_map<std::string, int*> &map = master_map[directory_buffer[current_fd_buffer_index_copy]];
     char new_file_buf[1024];
     // What happens if we write to directory buf at same time?? This is where we may need to rethink
     // Either need to introduce locking or a completely new buffer and merge the buffers after
@@ -245,7 +299,7 @@ void compaction(int *directory_buffer, int &current_fd_buffer_index, int dir_fd,
         std::strcpy(key, pair.first.c_str());
         std::strcpy(value, pair.second.c_str());
         lseek(fd, 0L, 2);
-        set(key, value, master_map[directory_buffer[current_fd_buffer_index_copy]], directory_buffer[current_fd_buffer_index_copy], true);
+        setter_for_compaction(key, value, master_map[directory_buffer[current_fd_buffer_index_copy]], directory_buffer[current_fd_buffer_index_copy]);
         lseek(fd, 0L, 0);
         int bytes_count = read(fd, new_file_buf, 1024);
         printf("Current buffer index postwrite %d", current_fd_buffer_index_copy);
@@ -266,8 +320,7 @@ void compaction(int *directory_buffer, int &current_fd_buffer_index, int dir_fd,
             snprintf(path, sizeof(path), "db/%d", directory_buffer[current_fd_buffer_index_copy]);
             int fd = open(path, O_RDWR|O_CREAT, 0666);
             memset(path, 0, 256);
-            std::unordered_map<std::string, int*> map;
-            master_map[directory_buffer[current_fd_buffer_index_copy]] = map;
+            std::unordered_map<std::string, int*> &map = master_map[directory_buffer[current_fd_buffer_index_copy]];
         }
         memset(new_file_buf, 0, 1024);
     }
@@ -406,7 +459,7 @@ int construct_hash_map_from_directory(){
                 strcpy(user_input_value, temp_buffer);
                 memset(temp_buffer, 0, 1000);
                 printf("directory buffer of current file index %d\n", directory_buffer[current_fd_buffer_index]);
-                int return_error = set(user_input_key, user_input_value, master_map[directory_buffer[current_fd_buffer_index]], directory_buffer[current_fd_buffer_index], false);
+                int return_error = set(user_input_key, user_input_value);
                 if (return_error == -1){
                     printf("Error occured inserting Key & Value\n");
                 }
@@ -440,8 +493,7 @@ int construct_hash_map_from_directory(){
                 length = strlen(temp_buffer);
                 user_input_key = (char *) malloc((length+1)* sizeof(char));
                 strcpy(user_input_key, temp_buffer);
-                int return_error = set(user_input_key, tombstone,master_map[directory_buffer[current_fd_buffer_index]], 
-                directory_buffer[current_fd_buffer_index], false);
+                int return_error = set(user_input_key, tombstone);
                 if (return_error == -1){
                     printf("Error occured Deleting Key & Value\n");
                 }
