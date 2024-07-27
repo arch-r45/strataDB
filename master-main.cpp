@@ -133,11 +133,12 @@ void check_page_fault(){
 int set(char * key, char * value, std::unordered_map<std::string, int*> &map, int file_number, bool compaction){
     if (compaction == false){
         check_page_fault();
+        file_number = directory_buffer[current_fd_buffer_index];
     }
     char path[256];
     snprintf(path, sizeof(path), "db/%d", file_number);    
     int fd = open(path, O_RDWR|O_CREAT, 0666);
-    printf("fd of Setter %d \n", fd);
+    printf("file path %d \n", file_number);
     memset(path, 0, 256);
     int PAGE_SIZE = 4096;
     char buf[PAGE_SIZE];
@@ -165,8 +166,16 @@ int set(char * key, char * value, std::unordered_map<std::string, int*> &map, in
         std::cout << s << "string \n";
         printf("Address of Pointer to array: %p\n", arr);
         arr[0] = pos;
+        printf("Working\n");
         arr[1] = total_length;
+        printf("Working\n");
+        if (master_map.find(file_number) == master_map.end()){
+            printf("Not Found");
+            std::unordered_map<std::string, int*> map;
+            master_map[directory_buffer[current_fd_buffer_index]] = map;
+        }
         map[s] = arr;
+        printf("Working\n");
         memset(buf, 0, PAGE_SIZE);
         return 0;
     }
