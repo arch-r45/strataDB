@@ -83,6 +83,12 @@ int test2(){
         failure = 0;
         printf("Return Value = %s instead of %s \n", return_value.c_str(), "2025");
     }
+
+    if (directory_buffer[current_fd_buffer_index] != 6){
+        failure = 0;
+        printf("Current File = %d not %d \n", directory_buffer[current_fd_buffer_index], 6);
+
+    }
     return failure;
 }
 int main(){
