@@ -523,6 +523,10 @@ int construct_hash_map_from_directory(){
             } 
             remove(path);
         }
+        // flush the directory too
+        current_fd_buffer_index = 0;
+        char path[] = "db/directory";
+        remove(path);
     }
 
 /*
