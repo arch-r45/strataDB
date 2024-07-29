@@ -512,6 +512,18 @@ int construct_hash_map_from_directory(){
         }
         return 0;
     }
+    void flush_db(){
+        for (int i = 0; i < current_fd_buffer_index + 1; i++){
+            char path[256];
+            snprintf(path, sizeof(path), "db/%d", directory_buffer[i]);
+            auto it = master_map.find(directory_buffer[i]);
+            if (it != master_map.end()) { 
+                printf("%s Path being erased\n", path);
+                master_map.erase(it); 
+            } 
+            remove(path);
+        }
+    }
 
 /*
 int main(){
