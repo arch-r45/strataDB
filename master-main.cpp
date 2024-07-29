@@ -14,6 +14,7 @@ int set(char * key, char * value);
 void compaction(int *directory_buffer, int &current_fd_buffer_index, int dir_fd, size_t directory_buffer_size);
 int construct_hash_map_from_directory();
 int command_line_interface();
+void flush_db();
 int PAGE_FAULT = 40;
 char tombstone[] = "_TOMBSTONE_";
 int FILE_LIMIT = 3;
