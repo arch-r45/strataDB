@@ -90,8 +90,8 @@ void check_page_fault(){
     fd = open(path, O_RDWR|O_CREAT, 0666);
     lseek(fd, 0L, 0);
     int size_in_bytes = read(fd, current_file_buffer, 1024);
-    printf("size_in_bytes of file %d \n", size_in_bytes);
-    printf("Size of Bytes %d --> Page Fault %d \n", size_in_bytes, PAGE_FAULT);
+    //printf("size_in_bytes of file %d \n", size_in_bytes);
+    //printf("Size of Bytes %d --> Page Fault %d \n", size_in_bytes, PAGE_FAULT);
     if (size_in_bytes >= PAGE_FAULT){
         printf("Changing Page");
         close(fd);
@@ -136,12 +136,12 @@ void check_page_fault(){
 int set(char * key, char * value){
     check_page_fault();
     int file_number = directory_buffer[current_fd_buffer_index];
-    printf("key %s\n", key);
-    printf("Value %s \n", value);
+    //printf("key %s\n", key);
+    //printf("Value %s \n", value);
     char path[256];
     snprintf(path, sizeof(path), "db/%d", file_number);    
     int fd = open(path, O_RDWR|O_CREAT, 0666);
-    printf("file path %d \n", file_number);
+    //printf("file path %d \n", file_number);
     memset(path, 0, 256);
     int PAGE_SIZE = 4096;
     char buf[PAGE_SIZE];
@@ -155,26 +155,26 @@ int set(char * key, char * value){
     memcpy(buf + (2* sizeof(int)) + key_length, value, val_length);
     int total_length = (2 * sizeof(int)) + key_length + val_length;
     buf[total_length] = '\0';
-    printf("Total Length: %d\n", total_length);
-    printf("Size of buf %lu\n", sizeof(buf));
+    //printf("Total Length: %d\n", total_length);
+    //printf("Size of buf %lu\n", sizeof(buf));
     long pos = lseek(fd, 0L, 2);
-    printf("Byte Offset in File %ld \n", pos);
+    //printf("Byte Offset in File %ld \n", pos);
     int bytes_written;
     bytes_written = write(fd, buf, total_length);
     close(fd);
-    printf("Bytes Written %d \n", bytes_written);
+    //printf("Bytes Written %d \n", bytes_written);
     if (bytes_written == total_length){
-        printf("Success \n");
+        //printf("Success \n");
         std::string s(key);
-        std::cout << s << "string \n";
-        printf("Address of Pointer to array: %p\n", arr);
+        //std::cout << s << "string \n";
+        //printf("Address of Pointer to array: %p\n", arr);
         arr[0] = pos;
-        printf("Working\n");
+        //printf("Working\n");
         arr[1] = total_length;
-        printf("Working\n");
-        printf("Array 1 %d \n", arr[1]);
+        //printf("Working\n");
+        //printf("Array 1 %d \n", arr[1]);
         master_map[file_number][s] = arr;
-        printf("Working\n");
+        //printf("Working\n");
         memset(buf, 0, PAGE_SIZE);
         return 0;
     }
@@ -234,9 +234,6 @@ int setter_for_compaction(char * key, char * value, std::unordered_map<std::stri
     memset(buf, 0, PAGE_SIZE);
     return -1;
 }
-
-
-
 
 void compaction(int *directory_buffer, int &current_fd_buffer_index, int dir_fd, size_t directory_buffer_size){
     std::unordered_map<std::string, std::string> temp_map;
@@ -529,13 +526,8 @@ int construct_hash_map_from_directory(){
         char path[] = "db/directory";
         remove(path);
     }
-
 /*
 int main(){
     int return_value = command_line_interface();
-
-    
 }
-
-
 */

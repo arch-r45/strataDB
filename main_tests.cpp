@@ -202,7 +202,8 @@ int test5(){
     char key2[] = "Rogan";
     char key3[] = "Shakespeare";
     clock_t start = clock();
-    for (int i = 0; i < 6000; i++){
+    int upper_bound = 6000;
+    for (int i = 0; i < upper_bound; i++){
         int length = snprintf(NULL, 0, "%d", i);
         char *val = (char*)malloc(length+1);
         snprintf(val, length + 1, "%d", i);
@@ -218,7 +219,7 @@ int test5(){
     }
     clock_t end = clock();
     double time_taken = ((double)(end - start)) / CLOCKS_PER_SEC;
-    printf("Time taken: %f seconds\n", time_taken);
+    printf("Number of Writes: %d writes\nTime taken: %f seconds\n", upper_bound, time_taken);
     std::string return_value = get(key1, directory_buffer, current_fd_buffer_index);
     if (return_value != "5997"){
         failure = 0;
