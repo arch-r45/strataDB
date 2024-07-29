@@ -43,7 +43,6 @@ int test2(){
     if (return_value != "2017"){
         failure = 0;
         printf("Return Value = %s instead of %s \n", return_value.c_str(), "2017");
-        
     }
     char key2[] = "Rogan";
     for (int i = 2013; i < 2018; i++){
@@ -57,7 +56,6 @@ int test2(){
     if (return_value != "2017"){
         failure = 0;
         printf("Return Value = %s instead of %s \n", return_value.c_str(), "2017");
-        
     }
     return_value = get(key2, directory_buffer, current_fd_buffer_index);
     if (return_value != "2017"){
@@ -131,7 +129,6 @@ int test3(){
         failure = 0;
         printf("Return Value = %s instead of %s \n", return_value.c_str(), "1616");
     }
-
     char key4 [] = "Knuth";
     return_value = get(key4, directory_buffer, current_fd_buffer_index);
     if (return_value != "Key Does Not Exist"){
@@ -139,7 +136,60 @@ int test3(){
         printf("Return Value = %s instead of %s \n", return_value.c_str(), "Key Does Not Exist");
     }
     return failure;
-
+}
+int test4(){
+    construct_hash_map_from_directory();
+    int failure = 1;
+    // changing file limit to 5 here allows compaction to be called
+    FILE_LIMIT = 5;
+    PAGE_FAULT = 1024;
+    char key1[] = "Shea";
+    int length;
+    for (int i = 1834; i < 2025; i++){
+        length = snprintf(NULL, 0, "%d", i);
+        char *val = (char*)malloc(length+1);
+        snprintf(val, length + 1, "%d", i);
+        set(key1, val);
+        free(val);
+    }
+    char key2[] = "Rogan";
+    for (int i = 1834; i < 2031; i++){
+        length = snprintf(NULL, 0, "%d", i);
+        char *val = (char*)malloc(length+1);
+        snprintf(val, length + 1, "%d", i);
+        set(key2, val);
+        free(val);
+    }
+    char key3[] = "Shakespeare";
+    for (int i = 1564; i < 1617; i++){
+        length = snprintf(NULL, 0, "%d", i);
+        char *val = (char*)malloc(length+1);
+        snprintf(val, length + 1, "%d", i);
+        set(key3, val);
+        free(val);
+    }
+    std::string return_value = get(key1, directory_buffer, current_fd_buffer_index);
+    if (return_value != "2024"){
+        failure = 0;
+        printf("Return Value = %s instead of %s \n", return_value.c_str(), "2024");
+    }
+    return_value = get(key2, directory_buffer, current_fd_buffer_index);
+    if (return_value != "2030"){
+        failure = 0;
+        printf("Return Value = %s instead of %s \n", return_value.c_str(), "2030");
+    }
+    return_value = get(key3, directory_buffer, current_fd_buffer_index);
+    if (return_value != "1616"){
+        failure = 0;
+        printf("Return Value = %s instead of %s \n", return_value.c_str(), "1616");
+    }
+    char key4 [] = "Knuth";
+    return_value = get(key4, directory_buffer, current_fd_buffer_index);
+    if (return_value != "Key Does Not Exist"){
+        failure = 0;
+        printf("Return Value = %s instead of %s \n", return_value.c_str(), "Key Does Not Exist");
+    }
+    return failure;
 }
 int main(){
     int total = 0;
@@ -156,5 +206,8 @@ int main(){
     total ++;
     passed += result;
     flush_db();
+    result = test4();
+    total ++;
+    passed += result;
     printf("Total tests passed: %d, percentage passed: %.2f%%\n", passed, 100.0 * ((float)passed / total));
 }
