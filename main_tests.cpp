@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <unordered_map>
+#include <time.h>
 #include "main.h"
 int test1(){
     int failure = 1;
@@ -191,6 +192,50 @@ int test4(){
     }
     return failure;
 }
+int test5(){
+    //stress test and time limit - no compaction -> Im oscilating between the three keys to simulate a real env
+    PAGE_FAULT = 10000;
+    FILE_LIMIT = 10;
+    int failure = 1;
+    construct_hash_map_from_directory();
+    char key1[] = "Shea";
+    char key2[] = "Rogan";
+    char key3[] = "Shakespeare";
+    clock_t start = clock();
+    for (int i = 0; i < 6000; i++){
+        int length = snprintf(NULL, 0, "%d", i);
+        char *val = (char*)malloc(length+1);
+        snprintf(val, length + 1, "%d", i);
+        if (i % 3 == 0){
+            set(key1, val);
+        }
+        else if (i % 3 == 1){
+            set(key2, val);
+        }
+        else{
+            set(key3, val);
+        }
+    }
+    clock_t end = clock();
+    double time_taken = ((double)(end - start)) / CLOCKS_PER_SEC;
+    printf("Time taken: %f seconds\n", time_taken);
+    std::string return_value = get(key1, directory_buffer, current_fd_buffer_index);
+    if (return_value != "5997"){
+        failure = 0;
+        printf("Return Value = %s instead of %s \n", return_value.c_str(), "5997");
+    }
+    return_value = get(key2, directory_buffer, current_fd_buffer_index);
+    if (return_value != "5998"){
+        failure = 0;
+        printf("Return Value = %s instead of %s \n", return_value.c_str(), "5998");
+    }
+    return_value = get(key3, directory_buffer, current_fd_buffer_index);
+    if (return_value != "5999"){
+        failure = 0;
+        printf("Return Value = %s instead of %s \n", return_value.c_str(), "5999");
+    }
+    return failure; 
+}
 int main(){
     int total = 0;
     int passed = 0;
@@ -207,6 +252,10 @@ int main(){
     passed += result;
     flush_db();
     result = test4();
+    total ++;
+    passed += result;
+    flush_db();
+    result = test5();
     total ++;
     passed += result;
     printf("Total tests passed: %d, percentage passed: %.2f%%\n", passed, 100.0 * ((float)passed / total));
