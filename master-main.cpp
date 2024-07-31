@@ -123,13 +123,6 @@ void check_page_fault(){
         std::unordered_map<std::string, int*> &map = master_map[directory_buffer[current_fd_buffer_index]];
         printf("File number %d\n", directory_buffer[current_fd_buffer_index]);
         printf("Pointer to map %p \n", &map);
-        /*
-        if (current_fd_buffer_index >= FILE_LIMIT){
-            compaction(directory_buffer, current_fd_buffer_index, dir_fd, sizeof(directory_buffer));
-            printf("Current Fd File Index Outside of compaction %d \n", current_fd_buffer_index);
-            printf("Current size of directory buffer %lu \n", sizeof(directory_buffer) / sizeof(int));
-        }
-        */
     }
 
 }
