@@ -14,8 +14,8 @@ typedef struct{
 
 static_hash_map* construct_hash_map(int size);
 int hash_function(int key,int total_size);
-int add_key(int key, int value);
-int get_value(int key);
+int add_key(static_hash_map *map, int key, int value);
+int get_value(static_hash_map *map, int key);
 int get_size(static_hash_map *map);
 int delete_key(static_hash_map *map, int key);
 void print_hash_map(static_hash_map *map);

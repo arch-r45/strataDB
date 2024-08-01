@@ -18,9 +18,10 @@ int hash_function(int key,int total_size);
 static_hash_map* resize(static_hash_map *map);
 int add_key(int key, int value);
 int get_value(int key);
-int get_size(static_hash_map *map);
-int delete_key(static_hash_map *map, int key);
-void print_hash_map(static_hash_map *map);
+int get_size();
+int delete_key(int key);
+void print_hash_map();
+void free_memory_hash_map();
 void construct_hash_map(){
     //printf("Construction Called \n");
     map = (static_hash_map*)malloc(sizeof(static_hash_map));
@@ -39,15 +40,17 @@ void construct_hash_map(){
     printf("Pointer to map %p \n", map);
 }
 int hash_function(int key,int total_size){
-    return (total_size-1) % key;
+    printf("total size: %d\n", total_size);
+    return key% total_size;
 }
 int add_key_resize(static_hash_map* new_map, int key, int value){
     printf("Pointer to map add_key %p \n", new_map);
+    printf("total size : %d\n", new_map->total_size);
     int hash_value = hash_function(key, new_map->total_size);
     printf("Hash Function %d \n", hash_value);
     printf("actual key %d \n", key);
     printf("Hash key %d \n", new_map->hash_map[hash_value].key);
-    while (new_map->hash_map[hash_value].key != -1 & new_map->hash_map[hash_value].value != -1){
+    while (new_map->hash_map[hash_value].key != -1 && new_map->hash_map[hash_value].value != -1){
         printf("KEY %d\n",new_map->hash_map[hash_value].key);
         printf("resize \n");
         printf("Current occupation %d \n",new_map->current_occupation);
@@ -109,7 +112,7 @@ int add_key(int key, int value){
     printf("Hash Function %d \n", hash_value);
     printf("actual key %d \n", key);
     printf("Hash key %d \n", map->hash_map[hash_value].key);
-    while (map->hash_map[hash_value].key != -1 & map->hash_map[hash_value].value != -1){
+    while (map->hash_map[hash_value].key != -1 && map->hash_map[hash_value].value != -1){
         printf("KEY %d\n",map->hash_map[hash_value].key);
         printf("Map total size %d \n", map-> total_size);
         printf("Current occupation %d \n",map->current_occupation);
@@ -159,10 +162,10 @@ int get_value(int key){
     printf("No value Found for key %d \n", key);
     return -1;
 }
-int get_size(static_hash_map *map){
+int get_size(){
     return map->current_occupation;
 }
-int delete_key(static_hash_map *map, int key){
+int delete_key(int key){
     int hash_value = hash_function(key, map->total_size);
     int original_hash = hash_value;
     while (map->hash_map[hash_value].key != -1){
@@ -184,7 +187,7 @@ int delete_key(static_hash_map *map, int key){
     printf("Deleted key: %d not found \n", key);
     return -1;
 }
-void print_hash_map(static_hash_map *map){
+void print_hash_map(){
     printf("current occupation %d\n", map->current_occupation);
     printf("{");
     int printed_keys = 0;
@@ -198,4 +201,16 @@ void print_hash_map(static_hash_map *map){
         }
     }
     printf("}\n");
+}
+
+void free_memory_hash_map() {
+    if (map != NULL) {
+        if (map->hash_map != NULL) {
+            printf("Not null \n");
+            free(map->hash_map);
+            map->hash_map = NULL;
+        }
+        free(map);
+        map = NULL;
+    }
 }

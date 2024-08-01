@@ -2,7 +2,6 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <unistd.h>
-
 typedef struct {
     int key;
     int value;
@@ -16,6 +15,7 @@ extern static_hash_map *map;
 void construct_hash_map();
 int add_key(int key, int value);
 int get_value(int key);
-int get_size(static_hash_map *map);
-int delete_key(static_hash_map *map, int key);
-void print_hash_map(static_hash_map *map);
+int get_size();
+int delete_key(int key);
+void print_hash_map();
+void free_memory_hash_map();
