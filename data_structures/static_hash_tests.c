@@ -238,6 +238,93 @@ int test7(){
     return failure;
 }
 
+int test8(){
+    int failure = 1;
+    static_hash_map* map = construct_hash_map(2);
+    int return_value = add_key(map, 10, 100);
+    return_value = add_key(map, 30, 100);
+    return_value = add_key(map, 20, 200);
+    printf("%d return value \n", return_value);
+    if(return_value != -1){
+        printf("no overflow correction \n");
+        failure = 0;
+    }
+    int val = get_value(map, 20);
+    printf("%d return value \n", val);
+    if (val!= -1){
+        printf("no overflow correction \n");
+        failure = 0;
+    }
+    return failure;
+
+}
+
+
+int test9(){
+    static_hash_map* map = construct_hash_map(10);
+    int failure = 1;
+    add_key(map, 10, 100);
+    add_key(map, 20, 200);
+    add_key(map, 30, 300);
+    add_key(map, 40, 400);
+    print_hash_map(map);
+    int val = get_value(map, 10);
+    if (val != 100){
+        failure = 0;
+        printf("val %d does not equal key %d \n", val, 100);
+    }
+    printf("val %d \n", val);
+
+    val = get_value(map, 20);
+    if (val != 200){
+        failure = 0;
+        printf("val %d does not equal key %d \n", val, 200);
+    }
+    printf("val %d \n", val);
+
+    val = get_size(map);
+    if (val != 4){
+        failure = 0;
+        printf("val %d does not equal size %d \n", val, 4);
+    }
+    printf("Size %d \n", val);
+
+    free_memory_hash_map(map);
+    return failure;
+}
+
+int test10(){
+    static_hash_map* map = construct_hash_map(5);
+    int failure = 1;
+    add_key(map, -10, 100);
+    add_key(map, 2147483647, 200);
+    print_hash_map(map);
+
+    // Verifying key-value pairs
+    int val = get_value(map, -10);
+    if (val != 100){
+        failure = 0;
+        printf("val %d does not equal key %d \n", val, 100);
+    }
+    printf("val %d \n", val);
+
+    val = get_value(map, 2147483647);
+    if (val != 200){
+        failure = 0;
+        printf("val %d does not equal key %d \n", val, 200);
+    }
+    printf("val %d \n", val);
+
+    val = get_size(map);
+    if (val != 2){
+        failure = 0;
+        printf("val %d does not equal size %d \n", val, 2);
+    }
+    printf("Size %d \n", val);
+
+    free_memory_hash_map(map);
+    return failure;
+}
 
 
 
@@ -273,7 +360,19 @@ void run_tests(){
     passed += result;
     total++;
     printf("%d\n", total);
+    result = test8();
+    passed += result;
+    total++;
+    printf("%d\n", total);
+    result = test9();
+    passed += result;
+    total++;
 
+    printf("%d\n", total);
+    result = test10();
+    passed += result;
+    total++;
+    printf("%d\n", total);
     printf("Total tests passed: %d, percentage passed: %.2f%%\n", passed, 100.0 * ((float)passed / total));
 }
 
