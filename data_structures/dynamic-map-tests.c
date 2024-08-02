@@ -12,13 +12,11 @@ int test1(){
     print_hash_map(map);
     add_key(2, 9);
     add_key(10, 20);
-    /*
     int size = get_size(map);
     printf("Size == %d\n", size);
     if (size != 3){
         failure = 0;
     }
-    */
     int val = get_value(2);
     printf("Value == %d \n", val);
     if (val != 9){
