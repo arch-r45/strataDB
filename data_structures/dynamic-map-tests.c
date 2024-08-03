@@ -68,6 +68,46 @@ int test2(){
     free_memory_hash_map();
     return failure;
 }
+int test3(){
+    construct_hash_map();
+    int failure = 1;
+    add_key(2, 8);
+    add_key(8, 64);
+    add_key(102, 204);
+    add_key(56, 112);
+    print_hash_map();
+
+    int val = get_value(2);
+    if (val != 8){
+        failure = 0;
+        printf("val %d does not equal key %d \n", val, 8);
+    }
+    printf("val %d \n", val);
+    val = get_value(102);
+    if (val != 204){
+        failure = 0;
+        printf("val %d does not equal key %d \n", val, 204);
+    }
+    printf("val %d \n", val);
+    val = get_size();
+    if (val != 4){
+        failure = 0;
+        printf("val %d does not equal size %d \n", val, 4);
+    }
+    printf("Size %d \n", val);
+
+    delete_key(8);
+    val = get_value(8);
+    if (val != -1){
+        failure = 0;
+        printf("key: %d not deleted  \n", 8);
+    }
+    val = get_size();
+    printf("Val: %d\n", val);
+    free_memory_hash_map();
+
+    return failure;
+}
 void run_tests(){
     int passed = 0;
     int total = 0;
