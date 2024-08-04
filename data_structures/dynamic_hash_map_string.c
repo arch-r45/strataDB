@@ -134,6 +134,7 @@ int add_key(char *key, char *value){
         printf("Total Capacity %d \n",map->total_size);
         printf("Hash Function %d \n", hash_value);
         if (strcmp(map->hash_map[hash_value].key, key)==0){
+            printf("Same Key %s\n", key);
             map->hash_map[hash_value].value = value;
             return 0;
         }
@@ -154,12 +155,14 @@ int add_key(char *key, char *value){
 }
 
 char* get_value(char * key){
+    printf("Key: %s\n", key);
     int key_length = strlen(key);
     int summation = 0;
     for (int i = 0; i < key_length; i++){
         summation += (int)key[i];
     }
     int hash_value = hash_function(summation, map->total_size);
+    printf("Hash Value %d \n", hash_value);
     int original_hash = hash_value;
     while (map->hash_map[hash_value].key != null_value){
         if (hash_value == original_hash -1){

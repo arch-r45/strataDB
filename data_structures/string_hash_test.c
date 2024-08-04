@@ -6,12 +6,29 @@
 #include <stdlib.h>
 int test1(){
     int failure = 1;
-    char key [] = "Rogan";
-    char value[] = "2013";
     construct_hash_map();
-    add_key(key, value);
+    char key [] = "Rogan";
+    int length;
+    for (int i = 2013; i < 2018; i++){
+        length = snprintf(NULL, 0, "%d", i);
+        char *val = (char*)malloc(length+1);
+        snprintf(val, length + 1, "%d", i);
+        add_key(key, val);
+    }
     char * return_value = get_value(key);
     printf("Return Value %s \n", return_value);
+    char key2 [] = "Shea";
+    for (int i = 2013; i < 2020; i++){
+        length = snprintf(NULL, 0, "%d", i);
+        char *val = (char*)malloc(length+1);
+        snprintf(val, length + 1, "%d", i);
+        add_key(key2, val);
+    }
+    return_value = get_value(key);
+    printf("Return Value %s \n", return_value);
+    return_value = get_value(key2);
+    printf("Return Value %s \n", return_value);
+    print_hash_map();
     return failure;
 }
 void run_tests(){
