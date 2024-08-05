@@ -11,11 +11,10 @@ typedef struct{
     int current_occupation;
     int total_size;
 } static_hash_map;
-extern static_hash_map *map;
-void construct_hash_map();
-int add_key(int key, int value);
-int get_value(int key);
-int get_size();
-int delete_key(int key);
-void print_hash_map();
-void free_memory_hash_map();
+static_hash_map* construct_hash_map();
+int add_key(static_hash_map* map, int key, int value);
+int get_value(static_hash_map* map, int key);
+int get_size(static_hash_map* map);
+int delete_key(static_hash_map* map, int key);
+void print_hash_map(static_hash_map* map);
+void free_memory_hash_map(static_hash_map* map);
