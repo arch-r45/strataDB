@@ -16,6 +16,19 @@ int test1(){
     }
     int * return_value = get_value_array(map, key);
     printf("return value index 0: %d -> 1: %d\n", return_value[0], return_value[1]);
+    char key2 [] = "James";
+    int value2[2] = {23, 26};
+    add_key_array(map, key2, value2);
+    char key3[] = "Jones";
+    int value3[2] = {22200201, 2621};
+    add_key_array(map, key3, value3);
+    delete_key_array(map, key);
+    return_value = get_value_array(map, key);
+    printf("return value index 0: %d -> 1: %d\n", return_value[0], return_value[1]);
+    return_value = get_value_array(map, key2);
+    printf("return value index 0: %d -> 1: %d\n", return_value[0], return_value[1]);
+    return_value = get_value_array(map, key3);
+    printf("return value index 0: %d -> 1: %d\n", return_value[0], return_value[1]);
     return 0;
 }
 int main(){
