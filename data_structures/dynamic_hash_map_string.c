@@ -231,11 +231,9 @@ void print_hash_map(static_hash_map* map){
     }
     printf("}\n");
 }
-
 void free_memory_hash_map(static_hash_map* map) {
     if (map != NULL) {
         if (map->hash_map != NULL) {
-            printf("Not null \n");
             free(map->hash_map);
             map->hash_map = NULL;
         }

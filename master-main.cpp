@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <unordered_map>
+#include "data_structures/dynamic_hash_map_string.h"
 int construct_hash_map_from_directory();
 int setter_for_compaction(char * key, char * value, std::unordered_map<std::string, int*> &map, int file_number);
 std::string get(char *key, int * directory_buffer, int current_fd_buffer_index);
@@ -229,7 +230,8 @@ int setter_for_compaction(char * key, char * value, std::unordered_map<std::stri
 }
 
 void compaction(int *directory_buffer, int &current_fd_buffer_index, int dir_fd, size_t directory_buffer_size){
-    std::unordered_map<std::string, std::string> temp_map;
+    //std::unordered_map<std::string, std::string> temp_map;
+    static_hash_map *temp_map = construct_hash_map();
     char path [256];
     int current_fd_buffer_index_copy = current_fd_buffer_index;
     int original_buffer_index = current_fd_buffer_index_copy;
@@ -261,13 +263,12 @@ void compaction(int *directory_buffer, int &current_fd_buffer_index, int dir_fd,
             printf("Key Size: %d \n", key_size);
             printf("Value Size %d \n", value_size);
             if (strcmp(value, tombstone) != 0){
-                std::string s(key);
-                std::string v(value);
-                temp_map[s] = value;
+                add_key(temp_map, key, value);
             }
+            printf("TRYING Key: %s\n", get_value(temp_map, key));
             j = j + sizeof(int) + sizeof(int) + key_size + value_size;
-            free(key);
-            free(value);
+            //free(key);
+            //free(value);
         }
     }
     directory_buffer[current_fd_buffer_index_copy + 1] = directory_buffer[current_fd_buffer_index_copy]+1;
@@ -284,21 +285,22 @@ void compaction(int *directory_buffer, int &current_fd_buffer_index, int dir_fd,
     char new_file_buf[1024];
     // What happens if we write to directory buf at same time?? This is where we may need to rethink
     // Either need to introduce locking or a completely new buffer and merge the buffers after
-    for (const auto& pair : temp_map) {
-        char *key = (char *) malloc ((pair.first.size() + 1) * sizeof(char));
-        char *value = (char *) malloc ((pair.second.size() + 1) * sizeof(char));
-        std::strcpy(key, pair.first.c_str());
-        std::strcpy(value, pair.second.c_str());
+    for (int i=0; i < temp_map->total_size; i++) {
+        if (temp_map->hash_map[i].key == null_value){
+            continue;
+        }
+        //char *key = (char *) malloc ((pair.first.size() + 1) * sizeof(char));
+        //char *value = (char *) malloc ((pair.second.size() + 1) * sizeof(char));
+        //std::strcpy(key, pair.first.c_str());
+        //std::strcpy(value, pair.second.c_str());
         lseek(fd, 0L, 2);
-        setter_for_compaction(key, value, master_map[directory_buffer[current_fd_buffer_index_copy]], directory_buffer[current_fd_buffer_index_copy]);
+        setter_for_compaction(temp_map->hash_map[i].key, temp_map->hash_map[i].value, master_map[directory_buffer[current_fd_buffer_index_copy]], directory_buffer[current_fd_buffer_index_copy]);
         lseek(fd, 0L, 0);
         int bytes_count = read(fd, new_file_buf, 1024);
         printf("Current buffer index postwrite %d", current_fd_buffer_index_copy);
         printf("Bytes Read after Lseek %d \n", bytes_count);
-        std::string return_value = get(key, directory_buffer, current_fd_buffer_index_copy);
+        std::string return_value = get(temp_map->hash_map[i].key, directory_buffer, current_fd_buffer_index_copy);
         std::cout << "Return Value, " << return_value << "\n";
-        free(key);
-        free(value);
         if (bytes_count > PAGE_FAULT){
             directory_buffer[current_fd_buffer_index_copy + 1] = directory_buffer[current_fd_buffer_index_copy]+1;
             current_fd_buffer_index_copy ++;
@@ -341,6 +343,7 @@ void compaction(int *directory_buffer, int &current_fd_buffer_index, int dir_fd,
     printf("size of directory buffer %lu\n", sizeof(int) * (current_fd_buffer_index+1));
     int new_bytes_new = write(dir_fd, new_directory_buffer, sizeof(int) * (current_fd_buffer_index+1));
     printf("New Bytes: %d \n", new_bytes_new);
+    free_memory_hash_map(temp_map);
 }
 int construct_hash_map_from_directory(){
     dir_fd = open("db/directory", O_RDWR|O_CREAT, 0666);

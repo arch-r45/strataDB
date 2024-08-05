@@ -52,13 +52,14 @@ int test1(){
         failure = 0;
     }
     printf("Re %s \n", return_value);
+    free_memory_hash_map(map);
     return failure;
 }
+
 
 void run_tests(){
     int passed = 0;
     int total = 0;
-    int result;
     passed += test1();
     total++;
     printf("Total tests passed: %d, percentage passed: %.2f%%\n", passed, 100.0 * ((float)passed / total));
