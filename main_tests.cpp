@@ -67,13 +67,13 @@ int test2(){
         length = snprintf(NULL, 0, "%d", i);
         char *val = (char*)malloc(length+1);
         snprintf(val, length + 1, "%d", i);
-        printf("i %d\n", i);
-        printf("current file number %d \n", directory_buffer[current_fd_buffer_index]);
+        //printf("i %d\n", i);
+        //printf("current file number %d \n", directory_buffer[current_fd_buffer_index]);
         set(key, val);
         free(val);
     }
-    printf("Dictionary %lu\n", master_map[5].count("Shea"));
-    printf("Dictionary %lu\n", master_map[6].count("Shea"));
+    //printf("Dictionary %lu\n", master_map[5].count("Shea"));
+    //printf("Dictionary %lu\n", master_map[6].count("Shea"));
     return_value = get(key, directory_buffer, current_fd_buffer_index);
     if (return_value != "2025"){
         failure = 0;
@@ -248,8 +248,8 @@ int main(){
         printf("TEST FAILED NUMBER %d \n", total);
     }
     passed += result;
-    /*
     flush_db();
+
     result = test2();
     total++;
     if (result == 0){
@@ -278,6 +278,5 @@ int main(){
         printf("TEST FAILED NUMBER %d \n", total);
     }
     passed += result;
-    */
     printf("Total tests passed: %d, percentage passed: %.2f%%\n", passed, 100.0 * ((float)passed / total));
 }

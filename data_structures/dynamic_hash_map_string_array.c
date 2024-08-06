@@ -145,7 +145,7 @@ int add_key_array(static_hash_map_array *map, char *key, int *value){
         printf("Hash Function %d \n", hash_value);
         */
         if (strcmp(map->hash_map[hash_value].key, key)==0){
-            printf("Same Key %s\n", key);
+            //printf("Same Key %s\n", key);
             map->hash_map[hash_value].value = value;
             return 0;
         }
@@ -166,14 +166,14 @@ int add_key_array(static_hash_map_array *map, char *key, int *value){
 }
 
 int * get_value_array(static_hash_map_array* map, char * key){
-    printf("Key: %s\n", key);
+    //printf("Key: %s\n", key);
     int key_length = strlen(key);
     int summation = 0;
     for (int i = 0; i < key_length; i++){
         summation += (int)key[i];
     }
     int hash_value = hash_function_array(summation, map->total_size);
-    printf("Hash Value %d \n", hash_value);
+    //printf("Hash Value %d \n", hash_value);
     int original_hash = hash_value;
     while (map->hash_map[hash_value].key != null_value_array){
         if (hash_value == original_hash -1){

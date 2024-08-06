@@ -27,8 +27,8 @@ int dir_fd;
 std::unordered_map<int, static_hash_map_array*> master_map;
 std::string get(char *key, int * directory_buffer, int current_fd_buffer_index){
     int file_index = -1;
-    printf("Current File Index %d \n", current_fd_buffer_index);
-    printf("current Fd Buffer Index %d\n", current_fd_buffer_index);
+    //printf("Current File Index %d \n", current_fd_buffer_index);
+    //printf("current Fd Buffer Index %d\n", current_fd_buffer_index);
     for (int i = current_fd_buffer_index; i > -1; i --){
         int *temp_array = get_value_array(master_map[directory_buffer[i]], key);
         if (temp_array[0] != nan_value){
@@ -40,22 +40,22 @@ std::string get(char *key, int * directory_buffer, int current_fd_buffer_index){
         return "Key Does Not Exist";
         
     }
-    printf("File Index of key %s : --> db/%d \n", key, file_index);
+    //printf("File Index of key %s : --> db/%d \n", key, file_index);
     char path[256];
     snprintf(path, sizeof(path), "db/%d", file_index);
     int fd = open(path, O_RDONLY, 0);
-    printf("opening file %d", fd);
+    //printf("opening file %d", fd);
     memset(path, 0, 256);
     int *arr = get_value_array(master_map[file_index], key);
     int offset = arr[0];
     int length_of_record = arr[1];
-    printf("offset: %d and Length of record: %d\n", offset, length_of_record);
+    //printf("offset: %d and Length of record: %d\n", offset, length_of_record);
     char * current_file_buf;
     current_file_buf = (char*)malloc((length_of_record + 1) * sizeof(char));
     lseek(fd, offset, 0);
     int bytes_read = read(fd, current_file_buf, length_of_record);
     if (bytes_read != length_of_record){
-        printf("Mismatch between Bytes Read: %d and Length of Record %d \n", bytes_read, length_of_record);
+        //printf("Mismatch between Bytes Read: %d and Length of Record %d \n", bytes_read, length_of_record);
     }
     int size_of_key;
     int size_of_value;
@@ -66,7 +66,7 @@ std::string get(char *key, int * directory_buffer, int current_fd_buffer_index){
     memcpy(found_key, current_file_buf + sizeof(int) + sizeof(int), size_of_key);
     found_key[size_of_key] = '\0';
     if (strcmp(found_key, key) != 0){
-        printf("Found key %s is not equal to inputted key: %s ", found_key, key);
+        //printf("Found key %s is not equal to inputted key: %s ", found_key, key);
         return "Keys are not equal in DB";
     }
     char *found_value;
@@ -94,38 +94,38 @@ void check_page_fault(){
     //printf("size_in_bytes of file %d \n", size_in_bytes);
     //printf("Size of Bytes %d --> Page Fault %d \n", size_in_bytes, PAGE_FAULT);
     if (size_in_bytes >= PAGE_FAULT){
-        printf("Changing Page");
+        //printf("Changing Page\n");
         close(fd);
         if (current_fd_buffer_index >= FILE_LIMIT){
             compaction(directory_buffer, current_fd_buffer_index, dir_fd, sizeof(directory_buffer));
-            printf("Current Fd File Index Outside of compaction %d \n", current_fd_buffer_index);
+            //printf("Current Fd File Index Outside of compaction %d \n", current_fd_buffer_index);
         }
         /*
         The last file is now essentially immutable, it will never be written to again
         Only read from
         */
-        printf("Current Fd_buffer_index: %d \n", current_fd_buffer_index);
+        //printf("Current Fd_buffer_index: %d \n", current_fd_buffer_index);
         directory_buffer[current_fd_buffer_index + 1] = directory_buffer[current_fd_buffer_index]+1;
         current_fd_buffer_index ++;
-        printf("New Fd_buffer_index: %d \n", current_fd_buffer_index);
+        //printf("New Fd_buffer_index: %d \n", current_fd_buffer_index);
         dir_byte_count = sizeof(directory_buffer);
         lseek(dir_fd, 0L, 2);
         int new_bytes = write(dir_fd, &directory_buffer[current_fd_buffer_index],(sizeof(int)));
-        printf("new_bytes %d \n", new_bytes);
+        //printf("new_bytes %d \n", new_bytes);
         char path[256];
         snprintf(path, sizeof(path), "db/%d", directory_buffer[current_fd_buffer_index]);
         for (int p = 0; p < current_fd_buffer_index+1; p++){
-            printf("index: %d, file number: %d \n", p, directory_buffer[p]);
+            //printf("index: %d, file number: %d \n", p, directory_buffer[p]);
         }
         int fd = open(path, O_RDWR|O_CREAT, 0666);
         close(fd);
-        printf("file fd %d \n", fd);
+        //printf("file fd %d \n", fd);
         memset(path, 0, 256);
         //std::unordered_map<std::string, int*> &map = master_map[directory_buffer[current_fd_buffer_index]];
         static_hash_map_array *map = construct_hash_map_array();
         master_map[directory_buffer[current_fd_buffer_index]] = map;
-        printf("File number %d\n", directory_buffer[current_fd_buffer_index]);
-        printf("Pointer to map %p \n", &map);
+        //printf("File number %d\n", directory_buffer[current_fd_buffer_index]);
+        //printf("Pointer to map %p \n", &map);
     }
 
 }
@@ -180,12 +180,12 @@ int set(char * key, char * value){
 }
 
 int setter_for_compaction(char * key, char * value, static_hash_map_array*map, int file_number){
-    printf("key %s\n", key);
-    printf("Value %s \n", value);
+    //printf("key %s\n", key);
+    //printf("Value %s \n", value);
     char path[256];
     snprintf(path, sizeof(path), "db/%d", file_number);    
     int fd = open(path, O_RDWR|O_CREAT, 0666);
-    printf("file path %d \n", file_number);
+    //printf("file path %d \n", file_number);
     memset(path, 0, 256);
     int PAGE_SIZE = 4096;
     char buf[PAGE_SIZE];
@@ -199,22 +199,22 @@ int setter_for_compaction(char * key, char * value, static_hash_map_array*map, i
     memcpy(buf + (2* sizeof(int)) + key_length, value, val_length);
     int total_length = (2 * sizeof(int)) + key_length + val_length;
     buf[total_length] = '\0';
-    printf("Total Length: %d\n", total_length);
-    printf("Size of buf %lu\n", sizeof(buf));
+    //printf("Total Length: %d\n", total_length);
+    //printf("Size of buf %lu\n", sizeof(buf));
     long pos = lseek(fd, 0L, 2);
-    printf("Byte Offset in File %ld \n", pos);
+    //printf("Byte Offset in File %ld \n", pos);
     int bytes_written;
     bytes_written = write(fd, buf, total_length);
     close(fd);
-    printf("Bytes Written %d \n", bytes_written);
+    //printf("Bytes Written %d \n", bytes_written);
     if (bytes_written == total_length){
-        printf("Success \n");
-        printf("Address of Pointer to array: %p\n", arr);
+        //printf("Success \n");
+        //printf("Address of Pointer to array: %p\n", arr);
         arr[0] = pos;
-        printf("Working\n");
+        //printf("Working\n");
         arr[1] = total_length;
-        printf("Working\n");
-        printf("Array 1 %d \n", arr[1]);
+        //printf("Working\n");
+        //printf("Array 1 %d \n", arr[1]);
         /*
         if (master_map.find(file_number) == master_map.end()){
             printf("Not Found");
@@ -222,9 +222,9 @@ int setter_for_compaction(char * key, char * value, static_hash_map_array*map, i
             master_map[directory_buffer[current_fd_buffer_index]] = map;
         }
         */
-        printf("Pointer to map %p \n", &map);
+        //printf("Pointer to map %p \n", &map);
         add_key_array(map, key, arr);
-        printf("Working\n");
+        //printf("Working\n");
         memset(buf, 0, PAGE_SIZE);
         return 0;
     }
@@ -238,7 +238,7 @@ void compaction(int *directory_buffer, int &current_fd_buffer_index, int dir_fd,
     char path [256];
     int current_fd_buffer_index_copy = current_fd_buffer_index;
     int original_buffer_index = current_fd_buffer_index_copy;
-    printf("Original Buffer at start of compaction %d\n", original_buffer_index);
+    //printf("Original Buffer at start of compaction %d\n", original_buffer_index);
     int fd;
     char file_buffer [1024];
     int deleted_group [current_fd_buffer_index_copy];
@@ -261,14 +261,14 @@ void compaction(int *directory_buffer, int &current_fd_buffer_index, int dir_fd,
             memcpy(value, file_buffer + j + sizeof(int) + sizeof(int) + key_size, value_size);
             key[key_size] = '\0';
             value[value_size] = '\0';
-            printf("Key: %s\n", key);
-            printf("Value %s \n", value);
-            printf("Key Size: %d \n", key_size);
-            printf("Value Size %d \n", value_size);
+            //printf("Key: %s\n", key);
+            //printf("Value %s \n", value);
+            //printf("Key Size: %d \n", key_size);
+            //printf("Value Size %d \n", value_size);
             if (strcmp(value, tombstone) != 0){
                 add_key(temp_map, key, value);
             }
-            printf("TRYING Key: %s\n", get_value(temp_map, key));
+            //printf("TRYING Key: %s\n", get_value(temp_map, key));
             j = j + sizeof(int) + sizeof(int) + key_size + value_size;
             //free(key);
             //free(value);
@@ -276,12 +276,12 @@ void compaction(int *directory_buffer, int &current_fd_buffer_index, int dir_fd,
     }
     directory_buffer[current_fd_buffer_index_copy + 1] = directory_buffer[current_fd_buffer_index_copy]+1;
     current_fd_buffer_index_copy ++;
-    printf("New Fd_buffer_index: %d \n", current_fd_buffer_index_copy);
+    //printf("New Fd_buffer_index: %d \n", current_fd_buffer_index_copy);
     lseek(dir_fd, 0L, 2);
     int new_bytes = write(dir_fd, &directory_buffer[current_fd_buffer_index_copy],(sizeof(int)));
-    printf("new_bytes %d \n", new_bytes);
+    //printf("new_bytes %d \n", new_bytes);
     snprintf(path, sizeof(path), "db/%d", directory_buffer[current_fd_buffer_index_copy]);
-    printf("Path %s \n", path);
+    //printf("Path %s \n", path);
     fd = open(path, O_RDWR|O_CREAT, 0666);
     memset(path, 0, 256);
     //std::unordered_map<std::string, int*> &map = master_map[directory_buffer[current_fd_buffer_index_copy]];
@@ -291,9 +291,11 @@ void compaction(int *directory_buffer, int &current_fd_buffer_index, int dir_fd,
     // What happens if we write to directory buf at same time?? This is where we may need to rethink
     // Either need to introduce locking or a completely new buffer and merge the buffers after
     for (int i=0; i < temp_map->total_size; i++) {
-        if (temp_map->hash_map[i].key == null_value_array){
+        if (strcmp(temp_map->hash_map[i].key, null_value_array) == 0){
+            //printf("EQUALS %d", i);
             continue;
         }
+        //printf("key: %s, null_value: %s\n", temp_map->hash_map[i].key, null_value_array);
         //char *key = (char *) malloc ((pair.first.size() + 1) * sizeof(char));
         //char *value = (char *) malloc ((pair.second.size() + 1) * sizeof(char));
         //std::strcpy(key, pair.first.c_str());
@@ -302,18 +304,18 @@ void compaction(int *directory_buffer, int &current_fd_buffer_index, int dir_fd,
         setter_for_compaction(temp_map->hash_map[i].key, temp_map->hash_map[i].value, master_map[directory_buffer[current_fd_buffer_index_copy]], directory_buffer[current_fd_buffer_index_copy]);
         lseek(fd, 0L, 0);
         int bytes_count = read(fd, new_file_buf, 1024);
-        printf("Current buffer index postwrite %d", current_fd_buffer_index_copy);
-        printf("Bytes Read after Lseek %d \n", bytes_count);
+        //printf("Current buffer index postwrite %d", current_fd_buffer_index_copy);
+        //printf("Bytes Read after Lseek %d \n", bytes_count);
         std::string return_value = get(temp_map->hash_map[i].key, directory_buffer, current_fd_buffer_index_copy);
         //std::cout << "Return Value, " << return_value << "\n";
         if (bytes_count > PAGE_FAULT){
             directory_buffer[current_fd_buffer_index_copy + 1] = directory_buffer[current_fd_buffer_index_copy]+1;
             current_fd_buffer_index_copy ++;
-            printf("New Fd_buffer_index: %d \n", current_fd_buffer_index_copy);
+            //printf("New Fd_buffer_index: %d \n", current_fd_buffer_index_copy);
             int dir_byte_count = sizeof(directory_buffer);
             lseek(dir_fd, 0L, 2);
             int new_bytes = write(dir_fd, &directory_buffer[current_fd_buffer_index_copy],(sizeof(int)));
-            printf("new_bytes %d \n", new_bytes);
+            //printf("new_bytes %d \n", new_bytes);
             char path[256];
             snprintf(path, sizeof(path), "db/%d", directory_buffer[current_fd_buffer_index_copy]);
             int fd = open(path, O_RDWR|O_CREAT, 0666);
@@ -336,30 +338,30 @@ void compaction(int *directory_buffer, int &current_fd_buffer_index, int dir_fd,
         snprintf(path, sizeof(path), "db/%d", directory_buffer[i]);
         auto it = master_map.find(directory_buffer[i]);
         if (it != master_map.end()) { 
-            printf("%s Path being erased\n", path);
+            //printf("%s Path being erased\n", path);
             master_map.erase(it); 
         } 
         remove(path);
         memset(path, 0, 256);
     }
-    printf("Original Buffer Index %d\n", original_buffer_index);
-    printf("new buffer index %d\n",current_fd_buffer_index_copy);
+    //printf("Original Buffer Index %d\n", original_buffer_index);
+    //printf("new buffer index %d\n",current_fd_buffer_index_copy);
     current_fd_buffer_index = current_fd_buffer_index_copy - (original_buffer_index+1);
-    printf("Current Fd Buffer Index %d \n", current_fd_buffer_index);
+    //printf("Current Fd Buffer Index %d \n", current_fd_buffer_index);
     memcpy(directory_buffer, new_directory_buffer, sizeof(int) * (current_fd_buffer_index+1));
-    printf("size of directory buffer %lu\n", sizeof(int) * (current_fd_buffer_index+1));
+    //printf("size of directory buffer %lu\n", sizeof(int) * (current_fd_buffer_index+1));
     int new_bytes_new = write(dir_fd, new_directory_buffer, sizeof(int) * (current_fd_buffer_index+1));
-    printf("New Bytes: %d \n", new_bytes_new);
+    //printf("New Bytes: %d \n", new_bytes_new);
     free_memory_hash_map(temp_map);
 }
 int construct_hash_map_from_directory(){
     dir_fd = open("db/directory", O_RDWR|O_CREAT, 0666);
     if (dir_fd == -1){
-        printf("File Could not be opened\n");
+        //printf("File Could not be opened\n");
         return -1;
     }
     int bytes_read_dir = read(dir_fd, directory_buffer, 1024);
-    printf("Bytes Read Directory %d\n", bytes_read_dir);
+    //printf("Bytes Read Directory %d\n", bytes_read_dir);
     int fd;
     if (bytes_read_dir == 0){
         /*
@@ -369,9 +371,9 @@ int construct_hash_map_from_directory(){
        master_map[0] = map;
        directory_buffer[0] = 0;
        dir_byte_count = sizeof(int);
-       printf("size of directory %zu \n", dir_byte_count);
+       //printf("size of directory %zu \n", dir_byte_count);
        int dir_bytes_read = write(dir_fd, directory_buffer,dir_byte_count);
-       printf("Bytes Written %d \n", dir_bytes_read);
+       //printf("Bytes Written %d \n", dir_bytes_read);
        char path[256];
        snprintf(path, sizeof(path), "db/%d", directory_buffer[0]);
        fd = open(path, O_RDWR|O_CREAT, 0666);
@@ -382,9 +384,9 @@ int construct_hash_map_from_directory(){
         /*
         Construction of Keydir in memory hash map based on log files
         */
-        printf("Else Case \n");
+        //printf("Else Case \n");
         int file_descriptors_written = bytes_read_dir / sizeof(int);
-        printf("file descriptors Written %d \n", file_descriptors_written);
+        //printf("file descriptors Written %d \n", file_descriptors_written);
         char file_buffer[1024];
         for (int i = 0; i < file_descriptors_written; i++){
             static_hash_map_array *map = construct_hash_map_array();
@@ -395,7 +397,7 @@ int construct_hash_map_from_directory(){
             fd = open(path, O_RDONLY, 0);
             memset(path, 0, 256);
             int bytes_read = read(fd, file_buffer, 1024);
-            printf("Bytes Read: %d\n", bytes_read);
+            //printf("Bytes Read: %d\n", bytes_read);
             int key_size;
             int value_size;
             int j = 0;
@@ -408,16 +410,16 @@ int construct_hash_map_from_directory(){
                 memcpy(value, file_buffer + j + sizeof(int) + sizeof(int) + key_size, value_size);
                 key[key_size] = '\0';
                 value[value_size] = '\0';
-                printf("Key: %s\n", key);
-                printf("Value %s \n", value);
-                printf("Key Size: %d \n", key_size);
-                printf("Value Size %d \n", value_size);
+                //printf("Key: %s\n", key);
+                //printf("Value %s \n", value);
+                //printf("Key Size: %d \n", key_size);
+                //printf("Value Size %d \n", value_size);
                 //get rid of std::string
                 //std::string key_s(key);
                 int *arr = (int*)malloc(2 * sizeof(int));
-                printf("Pointer to array %p \n", arr);
-                printf("J: %d \n", j);
-                printf("Offset: %lu \n", sizeof(int) + sizeof(int) + key_size + value_size);
+                //printf("Pointer to array %p \n", arr);
+                //printf("J: %d \n", j);
+                //printf("Offset: %lu \n", sizeof(int) + sizeof(int) + key_size + value_size);
                 arr[0] = j;
                 arr[1] = sizeof(int) + sizeof(int) + key_size + value_size;
                 //map[key_s] = arr;
@@ -522,7 +524,7 @@ int construct_hash_map_from_directory(){
             snprintf(path, sizeof(path), "db/%d", directory_buffer[i]);
             auto it = master_map.find(directory_buffer[i]);
             if (it != master_map.end()) { 
-                printf("%s Path being erased\n", path);
+                //printf("%s Path being erased\n", path);
                 master_map.erase(it); 
             } 
             remove(path);
