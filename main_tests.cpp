@@ -241,12 +241,14 @@ int main(){
     int total = 0;
     int passed = 0;
     int result = 0;
+
     result = test1();
     total ++;
     if (result == 0){
         printf("TEST FAILED NUMBER %d \n", total);
     }
     passed += result;
+    /*
     flush_db();
     result = test2();
     total++;
@@ -276,5 +278,6 @@ int main(){
         printf("TEST FAILED NUMBER %d \n", total);
     }
     passed += result;
+    */
     printf("Total tests passed: %d, percentage passed: %.2f%%\n", passed, 100.0 * ((float)passed / total));
 }

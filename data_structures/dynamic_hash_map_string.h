@@ -13,9 +13,9 @@ typedef struct{
     int current_occupation;
     int total_size;
 } static_hash_map;
-extern char null_value[];
+//extern char null_value[];
 static_hash_map* construct_hash_map();
-int hash_function(int key,int total_size);
+//int hash_function(int key,int total_size);
 int add_key(static_hash_map* map, char *key, char *value);
 char * get_value(static_hash_map* map, char* key);
 int get_size(static_hash_map* map);

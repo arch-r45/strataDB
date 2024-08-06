@@ -7,8 +7,9 @@
 #include <unistd.h>
 #include <unordered_map>
 #include "data_structures/dynamic_hash_map_string.h"
+#include "data_structures/dynamic_hash_map_string_array.h"
 int construct_hash_map_from_directory();
-int setter_for_compaction(char * key, char * value, std::unordered_map<std::string, int*> &map, int file_number);
+int setter_for_compaction(char * key, char * value, static_hash_map_array*map, int file_number);
 std::string get(char *key, int * directory_buffer, int current_fd_buffer_index);
 void check_page_fault();
 int set(char * key, char * value);
@@ -23,20 +24,21 @@ int directory_buffer [1024];
 int current_fd_buffer_index = -1;
 size_t dir_byte_count;
 int dir_fd;
-std::unordered_map<int, std::unordered_map<std::string, int*>> master_map;
+std::unordered_map<int, static_hash_map_array*> master_map;
 std::string get(char *key, int * directory_buffer, int current_fd_buffer_index){
     int file_index = -1;
     printf("Current File Index %d \n", current_fd_buffer_index);
     printf("current Fd Buffer Index %d\n", current_fd_buffer_index);
     for (int i = current_fd_buffer_index; i > -1; i --){
-        if (master_map[directory_buffer[i]].find(key) != master_map[directory_buffer[i]].end()){
+        int *temp_array = get_value_array(master_map[directory_buffer[i]], key);
+        if (temp_array[0] != nan_value){
             file_index = directory_buffer[i];
             break;
         }
     }
     if (file_index == -1){
-        std::string return_value = "Key Does Not Exist";
-        return return_value;
+        return "Key Does Not Exist";
+        
     }
     printf("File Index of key %s : --> db/%d \n", key, file_index);
     char path[256];
@@ -44,8 +46,7 @@ std::string get(char *key, int * directory_buffer, int current_fd_buffer_index){
     int fd = open(path, O_RDONLY, 0);
     printf("opening file %d", fd);
     memset(path, 0, 256);
-    printf("Memory Location of master_map key %p \n", master_map[file_index][key]);
-    int *arr = master_map[file_index][key];
+    int *arr = get_value_array(master_map[file_index], key);
     int offset = arr[0];
     int length_of_record = arr[1];
     printf("offset: %d and Length of record: %d\n", offset, length_of_record);
@@ -66,22 +67,21 @@ std::string get(char *key, int * directory_buffer, int current_fd_buffer_index){
     found_key[size_of_key] = '\0';
     if (strcmp(found_key, key) != 0){
         printf("Found key %s is not equal to inputted key: %s ", found_key, key);
-        std::string return_value = "Keys are not equal in DB";
-        return return_value;
+        return "Keys are not equal in DB";
     }
     char *found_value;
     found_value = (char*) malloc((size_of_value + 1) * sizeof(char));
     memcpy(found_value, current_file_buf + sizeof(int) + sizeof(int) + size_of_key, size_of_value);
     found_value[size_of_value] = '\0';
     if (strcmp(tombstone, found_value) == 0){
-        std::string return_value = "Key Does Not Exist";
-        return return_value;
+        return "Key Does Not Exist";
+
     }
-    std::string return_value(found_value);
     free(found_key);
-    free(found_value);
+    //free(found_value);
     free(current_file_buf);
-    return return_value;
+    std::string s(found_value);
+    return s;
 }
 void check_page_fault(){
     char current_file_buffer [1024];
@@ -121,7 +121,9 @@ void check_page_fault(){
         close(fd);
         printf("file fd %d \n", fd);
         memset(path, 0, 256);
-        std::unordered_map<std::string, int*> &map = master_map[directory_buffer[current_fd_buffer_index]];
+        //std::unordered_map<std::string, int*> &map = master_map[directory_buffer[current_fd_buffer_index]];
+        static_hash_map_array *map = construct_hash_map_array();
+        master_map[directory_buffer[current_fd_buffer_index]] = map;
         printf("File number %d\n", directory_buffer[current_fd_buffer_index]);
         printf("Pointer to map %p \n", &map);
     }
@@ -167,7 +169,8 @@ int set(char * key, char * value){
         arr[1] = total_length;
         //printf("Working\n");
         //printf("Array 1 %d \n", arr[1]);
-        master_map[file_number][s] = arr;
+        //master_map[file_number][s] = arr;
+        add_key_array(master_map[file_number], key, arr);
         //printf("Working\n");
         memset(buf, 0, PAGE_SIZE);
         return 0;
@@ -176,7 +179,7 @@ int set(char * key, char * value){
     return -1;
 }
 
-int setter_for_compaction(char * key, char * value, std::unordered_map<std::string, int*> &map, int file_number){
+int setter_for_compaction(char * key, char * value, static_hash_map_array*map, int file_number){
     printf("key %s\n", key);
     printf("Value %s \n", value);
     char path[256];
@@ -206,21 +209,21 @@ int setter_for_compaction(char * key, char * value, std::unordered_map<std::stri
     printf("Bytes Written %d \n", bytes_written);
     if (bytes_written == total_length){
         printf("Success \n");
-        std::string s(key);
-        std::cout << s << "string \n";
         printf("Address of Pointer to array: %p\n", arr);
         arr[0] = pos;
         printf("Working\n");
         arr[1] = total_length;
         printf("Working\n");
         printf("Array 1 %d \n", arr[1]);
+        /*
         if (master_map.find(file_number) == master_map.end()){
             printf("Not Found");
             std::unordered_map<std::string, int*> map;
             master_map[directory_buffer[current_fd_buffer_index]] = map;
         }
+        */
         printf("Pointer to map %p \n", &map);
-        map[s] = arr;
+        add_key_array(map, key, arr);
         printf("Working\n");
         memset(buf, 0, PAGE_SIZE);
         return 0;
@@ -281,12 +284,14 @@ void compaction(int *directory_buffer, int &current_fd_buffer_index, int dir_fd,
     printf("Path %s \n", path);
     fd = open(path, O_RDWR|O_CREAT, 0666);
     memset(path, 0, 256);
-    std::unordered_map<std::string, int*> &map = master_map[directory_buffer[current_fd_buffer_index_copy]];
+    //std::unordered_map<std::string, int*> &map = master_map[directory_buffer[current_fd_buffer_index_copy]];
+    static_hash_map_array *map = construct_hash_map_array();
+    master_map[directory_buffer[current_fd_buffer_index_copy]] = map;
     char new_file_buf[1024];
     // What happens if we write to directory buf at same time?? This is where we may need to rethink
     // Either need to introduce locking or a completely new buffer and merge the buffers after
     for (int i=0; i < temp_map->total_size; i++) {
-        if (temp_map->hash_map[i].key == null_value){
+        if (temp_map->hash_map[i].key == null_value_array){
             continue;
         }
         //char *key = (char *) malloc ((pair.first.size() + 1) * sizeof(char));
@@ -300,7 +305,7 @@ void compaction(int *directory_buffer, int &current_fd_buffer_index, int dir_fd,
         printf("Current buffer index postwrite %d", current_fd_buffer_index_copy);
         printf("Bytes Read after Lseek %d \n", bytes_count);
         std::string return_value = get(temp_map->hash_map[i].key, directory_buffer, current_fd_buffer_index_copy);
-        std::cout << "Return Value, " << return_value << "\n";
+        //std::cout << "Return Value, " << return_value << "\n";
         if (bytes_count > PAGE_FAULT){
             directory_buffer[current_fd_buffer_index_copy + 1] = directory_buffer[current_fd_buffer_index_copy]+1;
             current_fd_buffer_index_copy ++;
@@ -313,7 +318,9 @@ void compaction(int *directory_buffer, int &current_fd_buffer_index, int dir_fd,
             snprintf(path, sizeof(path), "db/%d", directory_buffer[current_fd_buffer_index_copy]);
             int fd = open(path, O_RDWR|O_CREAT, 0666);
             memset(path, 0, 256);
-            std::unordered_map<std::string, int*> &map = master_map[directory_buffer[current_fd_buffer_index_copy]];
+            //std::unordered_map<std::string, int*> &map = master_map[directory_buffer[current_fd_buffer_index_copy]];
+            static_hash_map_array *map = construct_hash_map_array();
+            master_map[directory_buffer[current_fd_buffer_index_copy]] = map;
         }
         memset(new_file_buf, 0, 1024);
     }
@@ -358,7 +365,7 @@ int construct_hash_map_from_directory(){
         /*
         Need to create a directory and original hash_map for files based on fd
         */
-       std::unordered_map<std::string, int*> map;
+       static_hash_map_array *map = construct_hash_map_array();
        master_map[0] = map;
        directory_buffer[0] = 0;
        dir_byte_count = sizeof(int);
@@ -380,7 +387,9 @@ int construct_hash_map_from_directory(){
         printf("file descriptors Written %d \n", file_descriptors_written);
         char file_buffer[1024];
         for (int i = 0; i < file_descriptors_written; i++){
-            std::unordered_map<std::string, int*>& map = master_map[directory_buffer[i]];
+            static_hash_map_array *map = construct_hash_map_array();
+            ///std::unordered_map<std::string, int*>& map = master_map[directory_buffer[i]];
+            master_map[directory_buffer[i]] = map;
             char path[256];
             snprintf(path, sizeof(path), "db/%d", directory_buffer[i]);
             fd = open(path, O_RDONLY, 0);
@@ -403,15 +412,16 @@ int construct_hash_map_from_directory(){
                 printf("Value %s \n", value);
                 printf("Key Size: %d \n", key_size);
                 printf("Value Size %d \n", value_size);
-                std::string key_s(key);
+                //get rid of std::string
+                //std::string key_s(key);
                 int *arr = (int*)malloc(2 * sizeof(int));
                 printf("Pointer to array %p \n", arr);
                 printf("J: %d \n", j);
                 printf("Offset: %lu \n", sizeof(int) + sizeof(int) + key_size + value_size);
                 arr[0] = j;
                 arr[1] = sizeof(int) + sizeof(int) + key_size + value_size;
-                std::cout << key_s << "\n";
-                map[key_s] = arr;
+                //map[key_s] = arr;
+                add_key_array(map, key, arr);
                 j = j + sizeof(int) + sizeof(int) + key_size + value_size;
                 free(key);
                 free(value);
