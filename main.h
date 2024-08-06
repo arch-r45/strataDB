@@ -10,7 +10,7 @@
 #include "data_structures/a_master_map.h"
 //#include "data_structures/dynamic_hash_map_string_array.h"
 int construct_hash_map_from_directory();
-std::string get(char *key, int * directory_buffer, int current_fd_buffer_index);
+char *get(char *key, int * directory_buffer, int current_fd_buffer_index);
 void check_page_fault();
 int set(char * key, char * value);
 void compaction(int *directory_buffer, int &current_fd_buffer_index, int dir_fd, size_t directory_buffer_size);

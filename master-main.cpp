@@ -11,7 +11,7 @@
 #include "data_structures/a_master_map.h"
 int construct_hash_map_from_directory();
 int setter_for_compaction(char * key, char * value, static_hash_map_array*map, int file_number);
-std::string get(char *key, int * directory_buffer, int current_fd_buffer_index);
+char *get(char *key, int * directory_buffer, int current_fd_buffer_index);
 void check_page_fault();
 int set(char * key, char * value);
 void compaction(int *directory_buffer, int &current_fd_buffer_index, int dir_fd, size_t directory_buffer_size);
@@ -27,7 +27,7 @@ size_t dir_byte_count;
 int dir_fd;
 //std::unordered_map<int, static_hash_map_array*> master_map;
 master_hash_map_array *master_map = master_construct_hash_map_array();
-std::string get(char *key, int * directory_buffer, int current_fd_buffer_index){
+char *get(char *key, int * directory_buffer, int current_fd_buffer_index){
     int file_index = -1;
     //printf("Current File Index %d \n", current_fd_buffer_index);
     //printf("current Fd Buffer Index %d\n", current_fd_buffer_index);
@@ -84,8 +84,8 @@ std::string get(char *key, int * directory_buffer, int current_fd_buffer_index){
     free(found_key);
     //free(found_value);
     free(current_file_buf);
-    std::string s(found_value);
-    return s;
+    //std::string s(found_value);
+    return found_value;
 }
 void check_page_fault(){
     char current_file_buffer [1024];
@@ -166,7 +166,7 @@ int set(char * key, char * value){
     //printf("Bytes Written %d \n", bytes_written);
     if (bytes_written == total_length){
         //printf("Success \n");
-        std::string s(key);
+        //std::string s(key);
         //std::cout << s << "string \n";
         //printf("Address of Pointer to array: %p\n", arr);
         arr[0] = pos;
@@ -313,7 +313,7 @@ void compaction(int *directory_buffer, int &current_fd_buffer_index, int dir_fd,
         int bytes_count = read(fd, new_file_buf, 1024);
         //printf("Current buffer index postwrite %d", current_fd_buffer_index_copy);
         //printf("Bytes Read after Lseek %d \n", bytes_count);
-        std::string return_value = get(temp_map->hash_map[i].key, directory_buffer, current_fd_buffer_index_copy);
+        //char* return_value = get(temp_map->hash_map[i].key, directory_buffer, current_fd_buffer_index_copy);
         //std::cout << "Return Value, " << return_value << "\n";
         if (bytes_count > PAGE_FAULT){
             directory_buffer[current_fd_buffer_index_copy + 1] = directory_buffer[current_fd_buffer_index_copy]+1;
@@ -501,8 +501,8 @@ int construct_hash_map_from_directory(){
                 printf("Directory buffer of current file index, %d\n", directory_buffer[current_fd_buffer_index]);
                 printf("Current fd index %d \n", current_fd_buffer_index);
                 printf("Current size of directory buffer %lu \n", sizeof(directory_buffer) / sizeof(int));
-                std::string return_value = get(user_input_key, directory_buffer, current_fd_buffer_index);
-                std::cout << "Key: " << user_input_key << " -> Value: " << return_value << "\n";
+                char * return_value = get(user_input_key, directory_buffer, current_fd_buffer_index);
+                printf("Key: %s, -> Value: %s\n", user_input_key, return_value);
                 memset(command, 0, sizeof(command));
                 free(user_input_key);
                 memset(temp_buffer, 0, 1000);
