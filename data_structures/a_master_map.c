@@ -5,8 +5,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include "dynamic_hash_map_string_array.h"
+int NULLKEY = -1111111;
 typedef struct {
-    int * key;
+    int key;
     static_hash_map_array *value;
 }master_map_item_array;
 typedef struct{
@@ -16,18 +17,18 @@ typedef struct{
 } master_hash_map_array;
 master_hash_map_array* master_construct_hash_map_array();
 int master_hash_function_array(int key,int total_size);
-int master_add_key_array(master_hash_map_array *map, int *key, static_hash_map_array *value);
-static_hash_map_array * master_get_value_array(master_hash_map_array *map, int * key);
+int master_add_key_array(master_hash_map_array *map, int key, static_hash_map_array *value);
+static_hash_map_array * master_get_value_array(master_hash_map_array *map, int key);
 int master_get_size_array(master_hash_map_array *map);
 int master_delete_key_array(master_hash_map_array *map, int key);
-void free_memory_hash_map_array(master_hash_map_array* map);
+void master_free_memory_hash_map_array(master_hash_map_array* map);
 
 master_hash_map_array* master_construct_hash_map_array(){
     //printf("Construction Called \n");
     master_hash_map_array*map = (master_hash_map_array*)malloc(sizeof(master_hash_map_array));
     //printf("Address: %p\n", map);
     master_map_item_array mapping;
-    mapping.key = NULL;
+    mapping.key = NULLKEY;
     mapping.value = NULL;
     int size = 2;
     map->hash_map = (master_map_item_array*)malloc(sizeof(master_map_item_array) * size);
@@ -50,7 +51,7 @@ int master_add_key_resize_array(master_hash_map_array* new_map, int key, static_
     int hash_value = master_hash_function_array(key, new_map->total_size);
     //printf("Hash Function %d \n", hash_value);
     //printf("Hash key %s \n", new_map->hash_map[hash_value].key);
-    while (new_map->hash_map[hash_value].key != NULL && new_map->hash_map[hash_value].value != NULL){
+    while (new_map->hash_map[hash_value].key != NULLKEY && new_map->hash_map[hash_value].value != NULL){
         /*
         printf("KEY %s\n",new_map->hash_map[hash_value].key);
         printf("resize \n");
@@ -87,7 +88,7 @@ master_hash_map_array * master_resize_array(master_hash_map_array *map){
     new_map->current_occupation = 0;
     new_map->total_size = new_size;
     master_map_item_array mapping;
-    mapping.key = NULL;
+    mapping.key = NULLKEY;
     mapping.value = NULL;
     for (int i = 0; i < new_map->total_size; i++){
         new_map->hash_map[i] = mapping; 
@@ -95,7 +96,7 @@ master_hash_map_array * master_resize_array(master_hash_map_array *map){
     //printf("Map current ocu %d\n", map->current_occupation);
     for (int i=0; i < map->total_size; i++){
         //printf("i%d: %s\n", i, map->hash_map[i].key);
-        if (map->hash_map[i].key != NULL && map->hash_map[i].value != NULL){
+        if (map->hash_map[i].key != NULLKEY && map->hash_map[i].value != NULL){
             //printf("resize key %s\n", map->hash_map[i].key);
             master_add_key_resize_array(new_map, map->hash_map[i].key, map->hash_map[i].value);
         }
@@ -107,11 +108,11 @@ master_hash_map_array * master_resize_array(master_hash_map_array *map){
 }
 
 
-int master_add_key_array(master_hash_map_array *map, int *key, static_hash_map_array *value){
+int master_add_key_array(master_hash_map_array *map, int key, static_hash_map_array *value){
     //printf("Pointer to map add_key %p \n", map);
     if (map->current_occupation == (map->total_size >> 1)){
         //printf("Current occupation %d \n",map->current_occupation);
-        map = resize_array(map);
+        map = master_resize_array(map);
         //printf("Pointer to map post resize %p \n", map);
     }
     int hash_value = master_hash_function_array(key, map->total_size);
@@ -120,7 +121,7 @@ int master_add_key_array(master_hash_map_array *map, int *key, static_hash_map_a
     printf("actual key %s \n", key);
     printf("Hash key %s \n", map->hash_map[hash_value].key);
     */
-    while (map->hash_map[hash_value].key != NULL && map->hash_map[hash_value].value != NULL){
+    while (map->hash_map[hash_value].key != NULLKEY && map->hash_map[hash_value].value != NULL){
         /*
         printf("KEY %s\n",map->hash_map[hash_value].key);
         printf("Map total size %d \n", map-> total_size);
@@ -149,12 +150,12 @@ int master_add_key_array(master_hash_map_array *map, int *key, static_hash_map_a
     return 0;
 }
 
-static_hash_map_array * master_get_value_array(master_hash_map_array *map, int * key){
+static_hash_map_array * master_get_value_array(master_hash_map_array *map, int key){
     //printf("Key: %s\n", key);
     int hash_value = master_hash_function_array(key, map->total_size);
     //printf("Hash Value %d \n", hash_value);
     int original_hash = hash_value;
-    while (map->hash_map[hash_value].key != NULL){
+    while (map->hash_map[hash_value].key != NULLKEY){
         if (hash_value == original_hash -1){
             break;
         }
@@ -182,7 +183,7 @@ int master_get_size_array(master_hash_map_array *map){
 int master_delete_key_array(master_hash_map_array *map, int key){
     int hash_value = master_hash_function_array(key, map->total_size);
     int original_hash = hash_value;
-    while (map->hash_map[hash_value].key != NULL){
+    while (map->hash_map[hash_value].key != NULLKEY){
         if (hash_value == original_hash -1){
             break;
         }
@@ -202,7 +203,7 @@ int master_delete_key_array(master_hash_map_array *map, int key){
 }
 
 
-void free_memory_hash_map_array(master_hash_map_array* map) {
+void master_free_memory_hash_map_array(master_hash_map_array* map) {
     if (map != NULL) {
         if (map->hash_map != NULL) {
             free(map->hash_map);
