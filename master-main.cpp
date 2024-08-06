@@ -7,7 +7,8 @@
 #include <unistd.h>
 #include <unordered_map>
 #include "data_structures/dynamic_hash_map_string.h"
-#include "data_structures/dynamic_hash_map_string_array.h"
+//#include "data_structures/dynamic_hash_map_string_array.h"
+#include "data_structures/a_master_map.h"
 int construct_hash_map_from_directory();
 int setter_for_compaction(char * key, char * value, static_hash_map_array*map, int file_number);
 std::string get(char *key, int * directory_buffer, int current_fd_buffer_index);
@@ -24,13 +25,15 @@ int directory_buffer [1024];
 int current_fd_buffer_index = -1;
 size_t dir_byte_count;
 int dir_fd;
-std::unordered_map<int, static_hash_map_array*> master_map;
+//std::unordered_map<int, static_hash_map_array*> master_map;
+master_hash_map_array *master_map = master_construct_hash_map_array();
 std::string get(char *key, int * directory_buffer, int current_fd_buffer_index){
     int file_index = -1;
     //printf("Current File Index %d \n", current_fd_buffer_index);
     //printf("current Fd Buffer Index %d\n", current_fd_buffer_index);
     for (int i = current_fd_buffer_index; i > -1; i --){
-        int *temp_array = get_value_array(master_map[directory_buffer[i]], key);
+        //master_map[directory_buffer[i]
+        int *temp_array = get_value_array(master_get_value_array(master_map, directory_buffer[i]), key);
         if (temp_array[0] != nan_value){
             file_index = directory_buffer[i];
             break;
@@ -46,7 +49,8 @@ std::string get(char *key, int * directory_buffer, int current_fd_buffer_index){
     int fd = open(path, O_RDONLY, 0);
     //printf("opening file %d", fd);
     memset(path, 0, 256);
-    int *arr = get_value_array(master_map[file_index], key);
+    //master_map[file_index]
+    int *arr = get_value_array(master_get_value_array(master_map, file_index), key);
     int offset = arr[0];
     int length_of_record = arr[1];
     //printf("offset: %d and Length of record: %d\n", offset, length_of_record);
@@ -123,7 +127,8 @@ void check_page_fault(){
         memset(path, 0, 256);
         //std::unordered_map<std::string, int*> &map = master_map[directory_buffer[current_fd_buffer_index]];
         static_hash_map_array *map = construct_hash_map_array();
-        master_map[directory_buffer[current_fd_buffer_index]] = map;
+        //master_map[directory_buffer[current_fd_buffer_index]] = map;
+        master_add_key_array(master_map, directory_buffer[current_fd_buffer_index], map);
         //printf("File number %d\n", directory_buffer[current_fd_buffer_index]);
         //printf("Pointer to map %p \n", &map);
     }
@@ -170,7 +175,8 @@ int set(char * key, char * value){
         //printf("Working\n");
         //printf("Array 1 %d \n", arr[1]);
         //master_map[file_number][s] = arr;
-        add_key_array(master_map[file_number], key, arr);
+        //master_map[file_number]
+        add_key_array(master_get_value_array(master_map, file_number), key, arr);
         //printf("Working\n");
         memset(buf, 0, PAGE_SIZE);
         return 0;
@@ -286,7 +292,8 @@ void compaction(int *directory_buffer, int &current_fd_buffer_index, int dir_fd,
     memset(path, 0, 256);
     //std::unordered_map<std::string, int*> &map = master_map[directory_buffer[current_fd_buffer_index_copy]];
     static_hash_map_array *map = construct_hash_map_array();
-    master_map[directory_buffer[current_fd_buffer_index_copy]] = map;
+    //master_map[directory_buffer[current_fd_buffer_index_copy]] = map;
+    master_add_key_array(master_map, directory_buffer[current_fd_buffer_index_copy], map);
     char new_file_buf[1024];
     // What happens if we write to directory buf at same time?? This is where we may need to rethink
     // Either need to introduce locking or a completely new buffer and merge the buffers after
@@ -301,7 +308,7 @@ void compaction(int *directory_buffer, int &current_fd_buffer_index, int dir_fd,
         //std::strcpy(key, pair.first.c_str());
         //std::strcpy(value, pair.second.c_str());
         lseek(fd, 0L, 2);
-        setter_for_compaction(temp_map->hash_map[i].key, temp_map->hash_map[i].value, master_map[directory_buffer[current_fd_buffer_index_copy]], directory_buffer[current_fd_buffer_index_copy]);
+        setter_for_compaction(temp_map->hash_map[i].key, temp_map->hash_map[i].value, master_get_value_array(master_map, directory_buffer[current_fd_buffer_index_copy]), directory_buffer[current_fd_buffer_index_copy]);
         lseek(fd, 0L, 0);
         int bytes_count = read(fd, new_file_buf, 1024);
         //printf("Current buffer index postwrite %d", current_fd_buffer_index_copy);
@@ -322,7 +329,8 @@ void compaction(int *directory_buffer, int &current_fd_buffer_index, int dir_fd,
             memset(path, 0, 256);
             //std::unordered_map<std::string, int*> &map = master_map[directory_buffer[current_fd_buffer_index_copy]];
             static_hash_map_array *map = construct_hash_map_array();
-            master_map[directory_buffer[current_fd_buffer_index_copy]] = map;
+            //master_map[directory_buffer[current_fd_buffer_index_copy]] = map;
+            master_add_key_array(master_map, directory_buffer[current_fd_buffer_index_copy], map);
         }
         memset(new_file_buf, 0, 1024);
     }
@@ -336,11 +344,15 @@ void compaction(int *directory_buffer, int &current_fd_buffer_index, int dir_fd,
     for (int i = 0; i < original_buffer_index+1; i++){
         char path[256];
         snprintf(path, sizeof(path), "db/%d", directory_buffer[i]);
+        master_delete_key_array(master_map, directory_buffer[i]);
+        /*
+        Call free here!
         auto it = master_map.find(directory_buffer[i]);
         if (it != master_map.end()) { 
             //printf("%s Path being erased\n", path);
             master_map.erase(it); 
         } 
+        */
         remove(path);
         memset(path, 0, 256);
     }
@@ -368,7 +380,8 @@ int construct_hash_map_from_directory(){
         Need to create a directory and original hash_map for files based on fd
         */
        static_hash_map_array *map = construct_hash_map_array();
-       master_map[0] = map;
+       //master_map[0] = map;
+       master_add_key_array(master_map, 0, map);
        directory_buffer[0] = 0;
        dir_byte_count = sizeof(int);
        //printf("size of directory %zu \n", dir_byte_count);
@@ -391,7 +404,8 @@ int construct_hash_map_from_directory(){
         for (int i = 0; i < file_descriptors_written; i++){
             static_hash_map_array *map = construct_hash_map_array();
             ///std::unordered_map<std::string, int*>& map = master_map[directory_buffer[i]];
-            master_map[directory_buffer[i]] = map;
+            //master_map[directory_buffer[i]] = map;
+            master_add_key_array(master_map, i, map);
             char path[256];
             snprintf(path, sizeof(path), "db/%d", directory_buffer[i]);
             fd = open(path, O_RDONLY, 0);
@@ -522,11 +536,14 @@ int construct_hash_map_from_directory(){
         for (int i = 0; i < current_fd_buffer_index + 1; i++){
             char path[256];
             snprintf(path, sizeof(path), "db/%d", directory_buffer[i]);
+            master_delete_key_array(master_map, directory_buffer[i]);
+            /*
             auto it = master_map.find(directory_buffer[i]);
             if (it != master_map.end()) { 
                 //printf("%s Path being erased\n", path);
                 master_map.erase(it); 
             } 
+            */
             remove(path);
         }
         // flush the directory too

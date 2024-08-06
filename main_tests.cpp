@@ -248,6 +248,7 @@ int main(){
         printf("TEST FAILED NUMBER %d \n", total);
     }
     passed += result;
+
     flush_db();
 
     result = test2();

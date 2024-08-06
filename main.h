@@ -7,7 +7,8 @@
 #include <unistd.h>
 #include <unordered_map>
 #include "data_structures/dynamic_hash_map_string.h"
-#include "data_structures/dynamic_hash_map_string_array.h"
+#include "data_structures/a_master_map.h"
+//#include "data_structures/dynamic_hash_map_string_array.h"
 int construct_hash_map_from_directory();
 std::string get(char *key, int * directory_buffer, int current_fd_buffer_index);
 void check_page_fault();
@@ -24,4 +25,4 @@ extern int directory_buffer[1024];
 extern int current_fd_buffer_index;
 extern size_t dir_byte_count;
 extern int dir_fd;
-extern std::unordered_map<int, std::unordered_map<std::string, int*>> master_map;
+extern master_hash_map_array master_map;
