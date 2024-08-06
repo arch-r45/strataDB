@@ -82,6 +82,8 @@
         "text_encoding": "cpp",
         "thread": "cpp",
         "cinttypes": "cpp",
-        "__memory": "c"
+        "__memory": "c",
+        "master-main.h": "c",
+        "a_master_map.h": "c"
     }
 }

@@ -1,11 +1,7 @@
-#include <iostream>
-#include <vector>
-#include <string>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <unistd.h>
-#include <unordered_map>
 #include "data_structures/dynamic_hash_map_string.h"
 //#include "data_structures/dynamic_hash_map_string_array.h"
 #include "data_structures/a_master_map.h"
@@ -14,7 +10,7 @@ int setter_for_compaction(char * key, char * value, static_hash_map_array*map, i
 char *get(char *key, int * directory_buffer, int current_fd_buffer_index);
 void check_page_fault();
 int set(char * key, char * value);
-void compaction(int *directory_buffer, int &current_fd_buffer_index, int dir_fd, size_t directory_buffer_size);
+void compaction(int *directory_buffer, int *current_fd_buffer_index, int dir_fd, size_t directory_buffer_size);
 int construct_hash_map_from_directory();
 int command_line_interface();
 void flush_db();
@@ -26,7 +22,7 @@ int current_fd_buffer_index = -1;
 size_t dir_byte_count;
 int dir_fd;
 //std::unordered_map<int, static_hash_map_array*> master_map;
-master_hash_map_array *master_map = master_construct_hash_map_array();
+master_hash_map_array *master_map;
 char *get(char *key, int * directory_buffer, int current_fd_buffer_index){
     int file_index = -1;
     //printf("Current File Index %d \n", current_fd_buffer_index);
@@ -101,7 +97,7 @@ void check_page_fault(){
         //printf("Changing Page\n");
         close(fd);
         if (current_fd_buffer_index >= FILE_LIMIT){
-            compaction(directory_buffer, current_fd_buffer_index, dir_fd, sizeof(directory_buffer));
+            compaction(directory_buffer, &current_fd_buffer_index, dir_fd, sizeof(directory_buffer));
             //printf("Current Fd File Index Outside of compaction %d \n", current_fd_buffer_index);
         }
         /*
@@ -238,11 +234,11 @@ int setter_for_compaction(char * key, char * value, static_hash_map_array*map, i
     return -1;
 }
 
-void compaction(int *directory_buffer, int &current_fd_buffer_index, int dir_fd, size_t directory_buffer_size){
+void compaction(int *directory_buffer, int *current_fd_buffer_index, int dir_fd, size_t directory_buffer_size){
     //std::unordered_map<std::string, std::string> temp_map;
     static_hash_map *temp_map = construct_hash_map();
     char path [256];
-    int current_fd_buffer_index_copy = current_fd_buffer_index;
+    int current_fd_buffer_index_copy = *current_fd_buffer_index;
     int original_buffer_index = current_fd_buffer_index_copy;
     //printf("Original Buffer at start of compaction %d\n", original_buffer_index);
     int fd;
@@ -358,15 +354,16 @@ void compaction(int *directory_buffer, int &current_fd_buffer_index, int dir_fd,
     }
     //printf("Original Buffer Index %d\n", original_buffer_index);
     //printf("new buffer index %d\n",current_fd_buffer_index_copy);
-    current_fd_buffer_index = current_fd_buffer_index_copy - (original_buffer_index+1);
+    *current_fd_buffer_index = current_fd_buffer_index_copy - (original_buffer_index+1);
     //printf("Current Fd Buffer Index %d \n", current_fd_buffer_index);
-    memcpy(directory_buffer, new_directory_buffer, sizeof(int) * (current_fd_buffer_index+1));
+    memcpy(directory_buffer, new_directory_buffer, sizeof(int) * (*current_fd_buffer_index+1));
     //printf("size of directory buffer %lu\n", sizeof(int) * (current_fd_buffer_index+1));
-    int new_bytes_new = write(dir_fd, new_directory_buffer, sizeof(int) * (current_fd_buffer_index+1));
+    int new_bytes_new = write(dir_fd, new_directory_buffer, sizeof(int) * (*current_fd_buffer_index+1));
     //printf("New Bytes: %d \n", new_bytes_new);
     free_memory_hash_map(temp_map);
 }
 int construct_hash_map_from_directory(){
+    master_map = master_construct_hash_map_array();
     dir_fd = open("db/directory", O_RDWR|O_CREAT, 0666);
     if (dir_fd == -1){
         //printf("File Could not be opened\n");

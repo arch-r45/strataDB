@@ -1,11 +1,7 @@
-#include <iostream>
-#include <vector>
-#include <string>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <unistd.h>
-#include <unordered_map>
 #include "data_structures/dynamic_hash_map_string.h"
 #include "data_structures/a_master_map.h"
 //#include "data_structures/dynamic_hash_map_string_array.h"
@@ -13,7 +9,7 @@ int construct_hash_map_from_directory();
 char *get(char *key, int * directory_buffer, int current_fd_buffer_index);
 void check_page_fault();
 int set(char * key, char * value);
-void compaction(int *directory_buffer, int &current_fd_buffer_index, int dir_fd, size_t directory_buffer_size);
+void compaction(int *directory_buffer, int *current_fd_buffer_index, int dir_fd, size_t directory_buffer_size);
 int construct_hash_map_from_directory();
 int command_line_interface();
 int setter_for_compaction(char * key, char * value, static_hash_map_array*map, int file_number);

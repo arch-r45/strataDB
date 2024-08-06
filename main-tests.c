@@ -1,13 +1,9 @@
-#include <iostream>
-#include <vector>
-#include <string>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <unistd.h>
-#include <unordered_map>
 #include <time.h>
-#include "main.h"
+#include "master-main.h"
 int test1(){
     int failure = 1;
     construct_hash_map_from_directory();
@@ -28,7 +24,6 @@ int test1(){
     }
     return failure;
 }
-
 
 int test2(){
     construct_hash_map_from_directory();
