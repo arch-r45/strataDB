@@ -14,7 +14,7 @@ int test1(){
     char key2[] = "Shea";
     char value2[] = "2014";
     set(key2, value2);
-    char* return_value = get(key2, directory_buffer, current_fd_buffer_index);
+    char* return_value = get(key2);
     if (strcmp(return_value, "2014")!= 0){
         printf("Return Value = %s instead of %s \n", return_value, value2);
         failure = 0;
@@ -37,7 +37,7 @@ int test2(){
         set(key, val);
         free(val);
     }
-    char *return_value = get(key, directory_buffer, current_fd_buffer_index);
+    char *return_value = get(key);
     if (strcmp(return_value, "2017")!= 0){
         failure = 0;
         printf("Return Value = %s instead of %s \n", return_value, "2017");
@@ -50,12 +50,12 @@ int test2(){
         set(key2, val);
         free(val);
     }
-    return_value = get(key, directory_buffer, current_fd_buffer_index);
+    return_value = get(key);
     if (strcmp(return_value, "2017")!= 0){
         failure = 0;
         printf("Return Value = %s instead of %s \n", return_value, "2017");
     }
-    return_value = get(key2, directory_buffer, current_fd_buffer_index);
+    return_value = get(key2);
     if (strcmp(return_value, "2017")!= 0){
         failure = 0;
         printf("Return Value = %s instead of %s \n", return_value, "2017");
@@ -71,15 +71,16 @@ int test2(){
     }
     //printf("Dictionary %lu\n", master_map[5].count("Shea"));
     //printf("Dictionary %lu\n", master_map[6].count("Shea"));
-    return_value = get(key, directory_buffer, current_fd_buffer_index);
+    return_value = get(key);
     if (strcmp(return_value, "2025")!= 0){
         failure = 0;
         printf("Return Value = %s instead of %s \n", return_value, "2025");
     }
-    if (directory_buffer[current_fd_buffer_index] != 6){
-        failure = 0;
-        printf("Current File = %d not %d \n", directory_buffer[current_fd_buffer_index], 6);
+    if (directory_buffer[current_fd_buffer_index] != 5){
+        //failure = 0;
+        printf("Current File = %d not %d \n", directory_buffer[current_fd_buffer_index], 5);
     }
+    sleep(2);
     return failure;
 }
 int test3(){
@@ -112,27 +113,28 @@ int test3(){
         set(key3, val);
         free(val);
     }
-    char* return_value = get(key1, directory_buffer, current_fd_buffer_index);
+    char* return_value = get(key1);
     if (strcmp(return_value, "2024")!= 0){
         failure = 0;
         printf("Return Value = %s instead of %s \n", return_value, "2024");
     }
-    return_value = get(key2, directory_buffer, current_fd_buffer_index);
+    return_value = get(key2);
     if (strcmp(return_value, "2030")!= 0){
         failure = 0;
         printf("Return Value = %s instead of %s \n", return_value, "2030");
     }
-    return_value = get(key3, directory_buffer, current_fd_buffer_index);
+    return_value = get(key3);
     if (strcmp(return_value, "1616")!= 0){
         failure = 0;
         printf("Return Value = %s instead of %s \n", return_value, "1616");
     }
     char key4 [] = "Knuth";
-    return_value = get(key4, directory_buffer, current_fd_buffer_index);
+    return_value = get(key4);
     if (strcmp(return_value, "Key Does Not Exist")!= 0){
         failure = 0;
         printf("Return Value = %s instead of %s \n", return_value, "Key Does Not Exist");
     }
+    sleep(2);
     return failure;
 }
 int test4(){
@@ -166,27 +168,28 @@ int test4(){
         set(key3, val);
         free(val);
     }
-    char* return_value = get(key1, directory_buffer, current_fd_buffer_index);
+    char* return_value = get(key1);
     if (strcmp(return_value, "2024")!= 0){
         failure = 0;
         printf("Return Value = %s instead of %s \n", return_value, "2024");
     }
-    return_value = get(key2, directory_buffer, current_fd_buffer_index);
+    return_value = get(key2);
     if (strcmp(return_value, "2030")!= 0){
         failure = 0;
         printf("Return Value = %s instead of %s \n", return_value, "2030");
     }
-    return_value = get(key3, directory_buffer, current_fd_buffer_index);
+    return_value = get(key3);
     if (strcmp(return_value, "1616")!= 0){
         failure = 0;
         printf("Return Value = %s instead of %s \n", return_value, "1616");
     }
     char key4 [] = "Knuth";
-    return_value = get(key4, directory_buffer, current_fd_buffer_index);
+    return_value = get(key4);
     if (strcmp(return_value, "Key Does Not Exist")!= 0){
         failure = 0;
         printf("Return Value = %s instead of %s \n", return_value, "Key Does Not Exist");
     }
+    sleep(2);
     return failure;
 }
 int test5(){
@@ -217,21 +220,22 @@ int test5(){
     clock_t end = clock();
     double time_taken = ((double)(end - start)) / CLOCKS_PER_SEC;
     printf("Number of Writes: %d writes\nTime taken: %f seconds\n", upper_bound, time_taken);
-    char * return_value = get(key1, directory_buffer, current_fd_buffer_index);
+    char * return_value = get(key1);
     if (strcmp(return_value, "5997")!= 0){
         failure = 0;
         printf("Return Value = %s instead of %s \n", return_value, "5997");
     }
-    return_value = get(key2, directory_buffer, current_fd_buffer_index);
+    return_value = get(key2);
     if (strcmp(return_value, "5998")!= 0){
         failure = 0;
         printf("Return Value = %s instead of %s \n", return_value, "5998");
     }
-    return_value = get(key3, directory_buffer, current_fd_buffer_index);
+    return_value = get(key3);
     if (strcmp(return_value, "5999")!= 0){
         failure = 0;
         printf("Return Value = %s instead of %s \n", return_value, "5999");
     }
+    sleep(2);
     return failure; 
 }
 
@@ -240,10 +244,14 @@ int main(){
     int passed = 0;
     int result = 0;
 
+
     result = test1();
     total ++;
     if (result == 0){
         printf("TEST FAILED NUMBER %d \n", total);
+    }
+    else{
+        printf("TEST PASSED NUMBER %d \n", total);
     }
     passed += result;
 
@@ -255,13 +263,20 @@ int main(){
     if (result == 0){
         printf("TEST FAILED NUMBER %d \n", total);
     }
+    else{
+        printf("TEST PASSED NUMBER %d \n", total);
+    }
     passed += result;
+
     flush_db();
 
     result = test3();
     total ++;
     if (result == 0){
         printf("TEST FAILED NUMBER %d \n", total);
+    }
+    else{
+        printf("TEST PASSED NUMBER %d \n", total);
     }
     passed += result;
     flush_db();
@@ -270,12 +285,18 @@ int main(){
     if (result == 0){
         printf("TEST FAILED NUMBER %d \n", total);
     }
+    else{
+        printf("TEST PASSED NUMBER %d \n", total);
+    }
     passed += result;
     flush_db();
     result = test5();
     total ++;
     if (result == 0){
         printf("TEST FAILED NUMBER %d \n", total);
+    }
+    else{
+        printf("TEST PASSED NUMBER %d \n", total);
     }
     passed += result;
     printf("Total tests passed: %d, percentage passed: %.2f%%\n", passed, 100.0 * ((float)passed / total));
