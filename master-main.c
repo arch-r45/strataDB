@@ -287,19 +287,19 @@ void *compaction(void *arg){
         int key_size;
         int value_size;
         int j = 0;
-        printf("Bytes Read: %d\n", bytes_read);
+        //printf("Bytes Read: %d\n", bytes_read);
         while (j < bytes_read){
             memcpy(&key_size, file_buffer + j, sizeof(int));
             memcpy(&value_size, file_buffer+ j + sizeof(int), sizeof(int));
-            printf("Bytes Key: %d\n", j + sizeof(int) + sizeof(int));
-            printf("Bytes Value: %d\n", j + sizeof(int) + sizeof(int) + key_size);
+            //printf("Bytes Key: %d\n", j + sizeof(int) + sizeof(int));
+            //printf("Bytes Value: %d\n", j + sizeof(int) + sizeof(int) + key_size);
             char * key = (char*) malloc(key_size+1);
             if (key == NULL) {
-                printf("Failed to allocate memory for key\n");
+                //printf("Failed to allocate memory for key\n");
             }
             char * value = (char *) malloc(value_size+1);
             if (value == NULL){
-                printf("Failed to allocate memory for Value\n");
+                //printf("Failed to allocate memory for Value\n");
             }
             memcpy(key, file_buffer + j + sizeof(int) + sizeof(int), key_size);
             memcpy(value, file_buffer + j + sizeof(int) + sizeof(int) + key_size, value_size);
