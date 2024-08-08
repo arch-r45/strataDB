@@ -275,7 +275,7 @@ void *compaction(void *arg){
     int original_buffer_index = copy;
     //printf("Original Buffer at start of compaction %d\n", original_buffer_index);
     int fd;
-    char file_buffer [1024];
+    char file_buffer [4096];
     int deleted_group [current_fd_buffer_index_copy];
     for (int i = 0; i < current_fd_buffer_index_copy+1; i++){
         snprintf(path, sizeof(path), "db/%d", directory_buffer[i]);
@@ -287,11 +287,20 @@ void *compaction(void *arg){
         int key_size;
         int value_size;
         int j = 0;
+        printf("Bytes Read: %d\n", bytes_read);
         while (j < bytes_read){
             memcpy(&key_size, file_buffer + j, sizeof(int));
             memcpy(&value_size, file_buffer+ j + sizeof(int), sizeof(int));
+            printf("Bytes Key: %d\n", j + sizeof(int) + sizeof(int));
+            printf("Bytes Value: %d\n", j + sizeof(int) + sizeof(int) + key_size);
             char * key = (char*) malloc(key_size+1);
+            if (key == NULL) {
+                printf("Failed to allocate memory for key\n");
+            }
             char * value = (char *) malloc(value_size+1);
+            if (value == NULL){
+                printf("Failed to allocate memory for Value\n");
+            }
             memcpy(key, file_buffer + j + sizeof(int) + sizeof(int), key_size);
             memcpy(value, file_buffer + j + sizeof(int) + sizeof(int) + key_size, value_size);
             key[key_size] = '\0';

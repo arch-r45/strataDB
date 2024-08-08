@@ -5,6 +5,7 @@
 #include <time.h>
 #include "master-main.h"
 int test1(){
+    printf("starting test 1\n");
     int failure = 1;
     construct_hash_map_from_directory();
     //set(char * key, char * value, std::unordered_map<std::string, int*> &map, int file_number, bool compaction)
@@ -26,6 +27,7 @@ int test1(){
 }
 
 int test2(){
+    printf("starting test 2\n");
     construct_hash_map_from_directory();
     int failure = 1;
     char key[] = "Shea";
@@ -84,6 +86,7 @@ int test2(){
     return failure;
 }
 int test3(){
+    printf("starting test 3\n");
     construct_hash_map_from_directory();
     int failure = 1;
     FILE_LIMIT = 10;
@@ -138,6 +141,7 @@ int test3(){
     return failure;
 }
 int test4(){
+    printf("starting test 4\n");
     construct_hash_map_from_directory();
     int failure = 1;
     // changing file limit to 5 here allows compaction to be called
@@ -254,6 +258,7 @@ int main(){
         printf("TEST PASSED NUMBER %d \n", total);
     }
     passed += result;
+    printf("Ran test %d\n", total);
 
 
     flush_db();
@@ -267,6 +272,7 @@ int main(){
         printf("TEST PASSED NUMBER %d \n", total);
     }
     passed += result;
+    printf("Ran test %d\n", total);
 
     flush_db();
 
@@ -279,8 +285,10 @@ int main(){
         printf("TEST PASSED NUMBER %d \n", total);
     }
     passed += result;
+    printf("Ran test %d\n", total);
     flush_db();
     result = test4();
+    printf("Ran test %d\n", total);
     total ++;
     if (result == 0){
         printf("TEST FAILED NUMBER %d \n", total);
@@ -289,8 +297,10 @@ int main(){
         printf("TEST PASSED NUMBER %d \n", total);
     }
     passed += result;
+    printf("Ran test %d\n", total);
     flush_db();
     result = test5();
+    printf("Ran test %d\n", total);
     total ++;
     if (result == 0){
         printf("TEST FAILED NUMBER %d \n", total);
@@ -299,5 +309,6 @@ int main(){
         printf("TEST PASSED NUMBER %d \n", total);
     }
     passed += result;
+    printf("Ran test %d\n", total);
     printf("Total tests passed: %d, percentage passed: %.2f%%\n", passed, 100.0 * ((float)passed / total));
 }
