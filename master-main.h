@@ -5,6 +5,7 @@
 #include "data_structures/dynamic_hash_map_string.h"
 #include "data_structures/a_master_map.h"
 #include <pthread.h>
+#include "buffer-pool.h"
 //#include "data_structures/dynamic_hash_map_string_array.h"
 int construct_hash_map_from_directory();
 char *get(char *key);

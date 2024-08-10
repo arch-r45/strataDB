@@ -29,9 +29,11 @@ void print_linked_list();
 int table_add_key(HashEntry **page_table, char *path, char *block_ptr);
 char* table_get_value(HashEntry *page_table, char *path);
 void boot_up_buffer_pool();
+void free_buffer_pool();
+
 void boot_up_buffer_pool(){
     manager = (buffer_pool*)malloc(sizeof(buffer_pool));
-    manager->block = (char*)malloc(sizeof(char) * 40000);
+    manager->block = (char*)malloc(sizeof(char) * (manager->capacity * manager->frame_size));
     manager->capacity = 10;
     manager -> lru_hash_map = lru_construct_hash_map();
     manager->free_frame = (int*)malloc(sizeof(int) * manager->capacity);
@@ -74,13 +76,19 @@ char * read_from_buffer_pool(char *path){
         }
         link_node *node = eviction();
         char *location = table_get_value(manager->page_table, node->value);
+        printf("location\n");
         memset(location, 0, manager->frame_size);
         node->value = strdup(path);
+        printf("node -value %s\n", node->value);
         node->pin = 1;
+        printf("node pin%d\n", node->pin);
         table_add_key(&manager -> page_table, path, location);
+        printf("added key\n");
         int fd = open(path, O_RDONLY, 0);
+        printf("fd\n");
         lru_add_key(manager->lru_hash_map, path, node);
         link_node *temp = lru_cache->head->next;
+        printf("temp\n");
         lru_cache->head->next = node;
         node->prev = lru_cache->head;
         node->next = temp;
@@ -112,6 +120,7 @@ link_node* eviction(){
     while (node->pin != 0){
         node = node->prev;
     }
+    printf("pointer to Node -> value: %s\n", node->value);
     link_node *prev = node-> prev;
     link_node *next = node-> next;
     node->next = NULL;
@@ -120,12 +129,20 @@ link_node* eviction(){
     next->prev = prev;
     return node;
 }
-
 int table_add_key(HashEntry **page_table, char *path, char *block_ptr) {
+    printf("add key Called: \n");
     HashEntry *entry = (HashEntry *)malloc(sizeof(HashEntry));
+    if (entry == NULL) {
+    printf("Failed to allocate memory for entry\n");
+    }
+    printf("Page: %p\n", page_table);
+    printf("entry: %p\n", entry);
     entry->path = strdup(path);
+    printf("Entry -> path %s\n", entry->path);
     entry->block_ptr = block_ptr;
+    printf("Entry -> block %p\n", entry->block_ptr);
     HASH_ADD_STR(*page_table, path, entry);
+    printf("worked\n");
     return 0;
 }
 char* table_get_value(HashEntry *page_table, char *path) {
@@ -144,6 +161,12 @@ void print_linked_list(){
         printf("string(path) value: %s \n", node->value);
         node = node->next;
     }
+}
+void free_buffer_pool(){
+    memset(manager->block, 0, manager->capacity * manager->frame_size);
+    free(manager->block);
+    free(manager->free_frame);
+    free(manager);
 }
 /*
 int write_to_buffer_pool(char * path){

@@ -6,6 +6,7 @@
 //#include "data_structures/dynamic_hash_map_string_array.h"
 #include "data_structures/a_master_map.h"
 #include <pthread.h>
+#include "buffer-pool.h"
 int construct_hash_map_from_directory();
 int setter_for_compaction(char * key, char * value, static_hash_map_array*map, int file_number);
 char *get(char *key);
@@ -48,29 +49,36 @@ char *get(char *key){
     //printf("File Index of key %s : --> db/%d \n", key, file_index);
     char path[256];
     snprintf(path, sizeof(path), "db/%d", file_index);
-    int fd = open(path, O_RDONLY, 0);
+    //int fd = open(path, O_RDONLY, 0);
+    char *location = read_from_buffer_pool(path);
+    printf("%p\n", location);
     //printf("opening file %d", fd);
-    memset(path, 0, 256);
+    //memset(path, 0, 256);
     //master_map[file_index]
     int *arr = get_value_array(master_get_value_array(master_map, file_index), key);
     int offset = arr[0];
     int length_of_record = arr[1];
     //printf("offset: %d and Length of record: %d\n", offset, length_of_record);
-    char * current_file_buf;
-    current_file_buf = (char*)malloc((length_of_record + 1) * sizeof(char));
-    lseek(fd, offset, 0);
-    int bytes_read = read(fd, current_file_buf, length_of_record);
+    //char * current_file_buf;
+    //current_file_buf = (char*)malloc((length_of_record + 1) * sizeof(char));
+    //lseek(fd, offset, 0);
+    //int bytes_read = read(fd, current_file_buf, length_of_record);
+    /*
     if (bytes_read != length_of_record){
         //printf("Mismatch between Bytes Read: %d and Length of Record %d \n", bytes_read, length_of_record);
     }
+    */
     int size_of_key;
     int size_of_value;
-    memcpy(&size_of_key, current_file_buf, sizeof(int));
-    memcpy(&size_of_value, current_file_buf+ sizeof(int), sizeof(int));
+    memcpy(&size_of_key, location+ offset, sizeof(int));
+    printf("size of key %d\n", size_of_key);
+    memcpy(&size_of_value, location + offset+ sizeof(int), sizeof(int));
+    printf("size of value%d\n", size_of_value);
     char *found_key;
     found_key = (char*) malloc ((size_of_key + 1) * sizeof(char));
-    memcpy(found_key, current_file_buf + sizeof(int) + sizeof(int), size_of_key);
+    memcpy(found_key, location+ offset + sizeof(int) + sizeof(int), size_of_key);
     found_key[size_of_key] = '\0';
+    printf("Found Key %s\n", found_key);
     //printf("Found Key: %s, key: %s\n", found_key, key);
     if (strcmp(found_key, key) != 0){
         //printf("Found key %s is not equal to inputted key: %s ", found_key, key);
@@ -79,8 +87,9 @@ char *get(char *key){
     }
     char *found_value;
     found_value = (char*) malloc((size_of_value + 1) * sizeof(char));
-    memcpy(found_value, current_file_buf + sizeof(int) + sizeof(int) + size_of_key, size_of_value);
+    memcpy(found_value, location + offset + sizeof(int) + sizeof(int) + size_of_key, size_of_value);
     found_value[size_of_value] = '\0';
+    printf("Found Key %s\n", found_value);
     if (strcmp(tombstone, found_value) == 0){
         pthread_mutex_unlock(&mtx);
         return "Key Does Not Exist";
@@ -88,8 +97,14 @@ char *get(char *key){
     }
     pthread_mutex_unlock(&mtx);
     free(found_key);
+    printf("Freed activated \n");
+
+    link_node *node = lru_get_value(manager->lru_hash_map, path);
+
+    printf("Pointer %p\n", node);
+    node-> pin = 0;
+    memset(path, 0, 256);
     //free(found_value);
-    free(current_file_buf);
     //std::string s(found_value);
     return found_value;
 }
@@ -410,6 +425,7 @@ void *compaction(void *arg){
 }
 int construct_hash_map_from_directory(){
     master_map = master_construct_hash_map_array();
+    boot_up_buffer_pool();
     dir_fd = open("db/directory", O_RDWR|O_CREAT, 0666);
     if (dir_fd == -1){
         //printf("File Could not be opened\n");

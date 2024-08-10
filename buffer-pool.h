@@ -4,14 +4,11 @@
 #include <unistd.h>
 #include "data_structures/lru_hash_map.h"
 #include "uthash.h"
-
-
 typedef struct {
     char *path;              
     char *block_ptr;           
     UT_hash_handle hh;         
 } HashEntry;
-
 typedef struct{
     link_node* head;
     link_node * tail;
@@ -32,3 +29,4 @@ extern doubly_linked_list *lru_cache;
 char* table_get_value(HashEntry *page_table, char *path);
 int table_add_key(HashEntry **page_table, char *path, char *block_ptr);
 void print_linked_list();
+void free_buffer_pool();

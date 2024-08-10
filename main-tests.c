@@ -15,6 +15,7 @@ int test1(){
     char key2[] = "Shea";
     char value2[] = "2014";
     set(key2, value2);
+    printf("made it\n");
     char* return_value = get(key2);
     if (strcmp(return_value, "2014")!= 0){
         printf("Return Value = %s instead of %s \n", return_value, value2);
@@ -273,7 +274,7 @@ int main(){
     }
     passed += result;
     printf("Ran test %d\n", total);
-
+    free_buffer_pool();
     flush_db();
 
     result = test3();
@@ -286,6 +287,7 @@ int main(){
     }
     passed += result;
     printf("Ran test %d\n", total);
+    free_buffer_pool();
     flush_db();
     result = test4();
     printf("Ran test %d\n", total);
@@ -298,6 +300,7 @@ int main(){
     }
     passed += result;
     printf("Ran test %d\n", total);
+    free_buffer_pool();
     flush_db();
     result = test5();
     printf("Ran test %d\n", total);
@@ -310,5 +313,6 @@ int main(){
     }
     passed += result;
     printf("Ran test %d\n", total);
+    free_buffer_pool();
     printf("Total tests passed: %d, percentage passed: %.2f%%\n", passed, 100.0 * ((float)passed / total));
 }
