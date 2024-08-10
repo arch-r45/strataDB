@@ -51,9 +51,6 @@ lru_static_hash_map* lru_construct_hash_map(){
 }
 int lru_hash_function(int key,int total_size){
     //printf("total size: %d\n", total_size);
-    printf("Key: %d\n", key);
-    printf("Total Size: %d\n", total_size);
-    printf("Mod: %d\n", key% total_size);
     return key% total_size;
 }
 
@@ -165,18 +162,14 @@ int lru_add_key(lru_static_hash_map *map, char *key, link_node *value){
 }
 
 link_node* lru_get_value(lru_static_hash_map* map, char * key){
-    printf("Key: %s\n", key);
     int key_length = strlen(key);
     int summation = 0;
     for (int i = 0; i < key_length; i++){
         summation += (int)key[i];
     }
     int hash_value = lru_hash_function(summation, map->total_size);
-    printf("Hash Value %d \n", hash_value);
     int original_hash = hash_value;
-    printf("Key: %s\n", map->hash_map[hash_value].key);
     while (map->hash_map[hash_value].key != lru_null_value){
-        printf("Key: %s\n", map->hash_map[hash_value].key);
         if (hash_value == original_hash -1){
             break;
         }

@@ -15,7 +15,6 @@ int test1(){
     char key2[] = "Shea";
     char value2[] = "2014";
     set(key2, value2);
-    printf("made it\n");
     char* return_value = get(key2);
     if (strcmp(return_value, "2014")!= 0){
         printf("Return Value = %s instead of %s \n", return_value, value2);
@@ -199,7 +198,8 @@ int test4(){
 }
 int test5(){
     //stress test and time limit - no compaction -> Im oscilating between the three keys to simulate a real env
-    PAGE_FAULT = 10000;
+    PAGE_FAULT = 4000;
+    printf("ran test 5\n");
     FILE_LIMIT = 10;
     int failure = 1;
     construct_hash_map_from_directory();

@@ -29,6 +29,7 @@ static pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
 master_hash_map_array *master_map;
 char *get(char *key){
     int locked = 0;
+    printf("get called\n");
     int file_index = -1;
     //printf("Current File Index %d \n", current_fd_buffer_index);
     //printf("current Fd Buffer Index %d\n", current_fd_buffer_index);
@@ -46,17 +47,20 @@ char *get(char *key){
         return "Key Does Not Exist";
         
     }
+    printf("File Index%d \n", file_index);
     //printf("File Index of key %s : --> db/%d \n", key, file_index);
     char path[256];
     snprintf(path, sizeof(path), "db/%d", file_index);
+    printf("Path%s \n", path);
     //int fd = open(path, O_RDONLY, 0);
     char *location = read_from_buffer_pool(path);
-    printf("%p\n", location);
+    printf("location %p\n", location);
     //printf("opening file %d", fd);
     //memset(path, 0, 256);
     //master_map[file_index]
     int *arr = get_value_array(master_get_value_array(master_map, file_index), key);
     int offset = arr[0];
+    printf("Offset: %d\n", offset);
     int length_of_record = arr[1];
     //printf("offset: %d and Length of record: %d\n", offset, length_of_record);
     //char * current_file_buf;
@@ -71,14 +75,11 @@ char *get(char *key){
     int size_of_key;
     int size_of_value;
     memcpy(&size_of_key, location+ offset, sizeof(int));
-    printf("size of key %d\n", size_of_key);
     memcpy(&size_of_value, location + offset+ sizeof(int), sizeof(int));
-    printf("size of value%d\n", size_of_value);
     char *found_key;
     found_key = (char*) malloc ((size_of_key + 1) * sizeof(char));
     memcpy(found_key, location+ offset + sizeof(int) + sizeof(int), size_of_key);
     found_key[size_of_key] = '\0';
-    printf("Found Key %s\n", found_key);
     //printf("Found Key: %s, key: %s\n", found_key, key);
     if (strcmp(found_key, key) != 0){
         //printf("Found key %s is not equal to inputted key: %s ", found_key, key);
@@ -89,7 +90,6 @@ char *get(char *key){
     found_value = (char*) malloc((size_of_value + 1) * sizeof(char));
     memcpy(found_value, location + offset + sizeof(int) + sizeof(int) + size_of_key, size_of_value);
     found_value[size_of_value] = '\0';
-    printf("Found Key %s\n", found_value);
     if (strcmp(tombstone, found_value) == 0){
         pthread_mutex_unlock(&mtx);
         return "Key Does Not Exist";
@@ -97,11 +97,9 @@ char *get(char *key){
     }
     pthread_mutex_unlock(&mtx);
     free(found_key);
-    printf("Freed activated \n");
 
     link_node *node = lru_get_value(manager->lru_hash_map, path);
 
-    printf("Pointer %p\n", node);
     node-> pin = 0;
     memset(path, 0, 256);
     //free(found_value);
