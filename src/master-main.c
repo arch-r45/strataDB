@@ -2,11 +2,11 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <unistd.h>
-#include "data_structures/dynamic_hash_map_string.h"
+#include "dynamic_hash_map_string.h"
 //#include "data_structures/dynamic_hash_map_string_array.h"
-#include "data_structures/a_master_map.h"
+#include "a_master_map.h"
 #include <pthread.h>
-#include "data_structures/lru_hash_map.h"
+#include "lru_hash_map.h"
 #include "uthash.h"
 int construct_hash_map_from_directory();
 char *get(char *key);

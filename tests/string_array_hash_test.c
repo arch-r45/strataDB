@@ -4,10 +4,9 @@
 #include <unistd.h>
 #include "dynamic_hash_map_string_array.h"
 #include <stdlib.h>
-
 int test1(){
     int failure = 1;
-    static_hash_map *map = construct_hash_map_array();
+    static_hash_map_array *map = construct_hash_map_array();
     char key [] = "Rogan";
     int length;
     for (int i = 2013; i < 2018; i++){
