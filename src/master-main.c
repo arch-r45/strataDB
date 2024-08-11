@@ -55,7 +55,7 @@ void free_buffer_pool();
 void change_buffer();
 
 char *get(char *key){
-    int locked = 0;
+    
     int file_index = -1;
     pthread_mutex_lock(&mtx);
     for (int i = current_fd_buffer_index; i > -1; i --){
@@ -75,7 +75,7 @@ char *get(char *key){
     char *location = read_from_buffer_pool(path);
     int *arr = get_value_array(master_get_value_array(master_map, file_index), key);
     int offset = arr[0];
-    int length_of_record = arr[1];
+    //int length_of_record = arr[1];
     int size_of_key;
     int size_of_value;
     memcpy(&size_of_key, location+ offset, sizeof(int));
@@ -245,10 +245,10 @@ void change_buffer(){
     *copy = current_fd_buffer_index;
     directory_buffer[current_fd_buffer_index + 1] = directory_buffer[current_fd_buffer_index]+1;
     current_fd_buffer_index++;
-    int file_number = directory_buffer[current_fd_buffer_index];
+    //int file_number = directory_buffer[current_fd_buffer_index];
     dir_byte_count = sizeof(directory_buffer);
     lseek(dir_fd, 0L, 2);
-    int new_bytes = write(dir_fd, &directory_buffer[current_fd_buffer_index],(sizeof(int)));
+    write(dir_fd, &directory_buffer[current_fd_buffer_index],(sizeof(int)));
     char path[256];
     snprintf(path, sizeof(path), "db/%d", directory_buffer[current_fd_buffer_index]);
     int fd = open(path, O_RDWR|O_CREAT, 0666);
@@ -268,8 +268,7 @@ void change_buffer(){
     if (current_fd_buffer_index > FILE_LIMIT && bit_flag == 0){
         bit_flag = 1;
         pthread_t t1;
-        int s;
-        s = pthread_create(&t1, NULL, compaction, copy);
+        pthread_create(&t1, NULL, compaction, copy);
         pthread_detach(t1);
     }
     
@@ -365,7 +364,7 @@ void *compaction(void *arg){
     }
     current_fd_buffer_index = current_fd_buffer_index - (original_buffer_index+1);
     memcpy(directory_buffer, new_directory_buffer, sizeof(int) * (current_fd_buffer_index+1));
-    int new_bytes_new = write(dir_fd, new_directory_buffer, sizeof(int) * (current_fd_buffer_index+1));
+    write(dir_fd, new_directory_buffer, sizeof(int) * (current_fd_buffer_index+1));
     free_memory_hash_map(temp_map);
     pthread_mutex_unlock(&mtx);
     bit_flag = 0;
@@ -388,7 +387,7 @@ int construct_hash_map_from_directory(){
        master_add_key_array(master_map, 0, map);
        directory_buffer[0] = 0;
        dir_byte_count = sizeof(int);
-       int dir_bytes_read = write(dir_fd, directory_buffer,dir_byte_count);
+       write(dir_fd, directory_buffer,dir_byte_count);
        char path[256];
        snprintf(path, sizeof(path), "db/%d", directory_buffer[0]);
        fd = open(path, O_RDWR|O_CREAT, 0666);

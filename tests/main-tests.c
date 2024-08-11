@@ -199,7 +199,6 @@ int test4(){
 int test5(){
     //stress test and time limit - no compaction -> Im oscilating between the three keys to simulate a real env
     PAGE_FAULT = 4000;
-    printf("ran test 5\n");
     FILE_LIMIT = 10;
     int failure = 1;
     construct_hash_map_from_directory();
@@ -287,7 +286,6 @@ int main(){
     printf("Ran test %d\n", total);
     flush_db();
     result = test4();
-    printf("Ran test %d\n", total);
     total ++;
     if (result == 0){
         printf("TEST FAILED NUMBER %d \n", total);
@@ -299,7 +297,6 @@ int main(){
     printf("Ran test %d\n", total);
     flush_db();
     result = test5();
-    printf("Ran test %d\n", total);
     total ++;
     if (result == 0){
         printf("TEST FAILED NUMBER %d \n", total);
