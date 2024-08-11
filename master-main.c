@@ -56,7 +56,6 @@ void change_buffer();
 
 char *get(char *key){
     int locked = 0;
-    printf("get called\n");
     int file_index = -1;
     pthread_mutex_lock(&mtx);
     for (int i = current_fd_buffer_index; i > -1; i --){
@@ -374,6 +373,7 @@ void *compaction(void *arg){
     
 }
 int construct_hash_map_from_directory(){
+    writer_thread_offset = 0;
     master_map = master_construct_hash_map_array();
     boot_up_buffer_pool();
     dir_fd = open("db/directory", O_RDWR|O_CREAT, 0666);
@@ -529,6 +529,7 @@ int construct_hash_map_from_directory(){
         current_fd_buffer_index = 0;
         char path[] = "db/directory";
         remove(path);
+        free_buffer_pool();
     }
 
 

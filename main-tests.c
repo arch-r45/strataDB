@@ -273,7 +273,6 @@ int main(){
     }
     passed += result;
     printf("Ran test %d\n", total);
-    free_buffer_pool();
     flush_db();
 
     result = test3();
@@ -286,7 +285,6 @@ int main(){
     }
     passed += result;
     printf("Ran test %d\n", total);
-    free_buffer_pool();
     flush_db();
     result = test4();
     printf("Ran test %d\n", total);
@@ -299,7 +297,6 @@ int main(){
     }
     passed += result;
     printf("Ran test %d\n", total);
-    free_buffer_pool();
     flush_db();
     result = test5();
     printf("Ran test %d\n", total);
@@ -312,6 +309,5 @@ int main(){
     }
     passed += result;
     printf("Ran test %d\n", total);
-    free_buffer_pool();
     printf("Total tests passed: %d, percentage passed: %.2f%%\n", passed, 100.0 * ((float)passed / total));
 }
