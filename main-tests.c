@@ -261,7 +261,6 @@ int main(){
     passed += result;
     printf("Ran test %d\n", total);
 
-
     flush_db();
 
     result = test2();

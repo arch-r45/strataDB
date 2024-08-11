@@ -6,11 +6,10 @@
 //#include "data_structures/dynamic_hash_map_string_array.h"
 #include "data_structures/a_master_map.h"
 #include <pthread.h>
-#include "buffer-pool.h"
+#include "data_structures/lru_hash_map.h"
+#include "uthash.h"
 int construct_hash_map_from_directory();
-int setter_for_compaction(char * key, char * value, static_hash_map_array*map, int file_number);
 char *get(char *key);
-void check_page_fault();
 int set(char * key, char * value);
 void *compaction(void *arg);
 int construct_hash_map_from_directory();
@@ -21,21 +20,46 @@ char tombstone[] = "_TOMBSTONE_";
 int FILE_LIMIT = 3;
 int directory_buffer [1024];
 int current_fd_buffer_index = -1;
+int writer_thread_offset = 0;
 size_t dir_byte_count;
 int dir_fd;
 int bit_flag = 0;
 static pthread_mutex_t mtx = PTHREAD_MUTEX_INITIALIZER;
-//std::unordered_map<int, static_hash_map_array*> master_map;
 master_hash_map_array *master_map;
+typedef struct {
+    char *path;              
+    char *block_ptr;           
+    UT_hash_handle hh;         
+} HashEntry;
+typedef struct{
+    link_node* head;
+    link_node* tail;
+}doubly_linked_list;
+typedef struct{
+    int capacity; //this should equal 10
+    int frame_size;
+    HashEntry *page_table; //Page table -> fixed size maps file path(str) to pointer
+    char *block; //call malloc at boot up and grab 40,000 bytes
+    int * free_frame;
+    lru_static_hash_map* lru_hash_map;
+} buffer_pool;
+char * read_from_buffer_pool(char *path);
+link_node* eviction();
+buffer_pool*manager;
+doubly_linked_list *lru_cache;
+void print_linked_list();
+int table_add_key(HashEntry **page_table, char *path, char *block_ptr);
+char* table_get_value(HashEntry *page_table, char *path);
+void boot_up_buffer_pool();
+void free_buffer_pool();
+void change_buffer();
+
 char *get(char *key){
     int locked = 0;
     printf("get called\n");
     int file_index = -1;
-    //printf("Current File Index %d \n", current_fd_buffer_index);
-    //printf("current Fd Buffer Index %d\n", current_fd_buffer_index);
     pthread_mutex_lock(&mtx);
     for (int i = current_fd_buffer_index; i > -1; i --){
-        //master_map[directory_buffer[i]
         int *temp_array = get_value_array(master_get_value_array(master_map, directory_buffer[i]), key);
         if (temp_array[0] != nan_value){
             file_index = directory_buffer[i];
@@ -47,31 +71,12 @@ char *get(char *key){
         return "Key Does Not Exist";
         
     }
-    printf("File Index%d \n", file_index);
-    //printf("File Index of key %s : --> db/%d \n", key, file_index);
     char path[256];
     snprintf(path, sizeof(path), "db/%d", file_index);
-    printf("Path%s \n", path);
-    //int fd = open(path, O_RDONLY, 0);
     char *location = read_from_buffer_pool(path);
-    printf("location %p\n", location);
-    //printf("opening file %d", fd);
-    //memset(path, 0, 256);
-    //master_map[file_index]
     int *arr = get_value_array(master_get_value_array(master_map, file_index), key);
     int offset = arr[0];
-    printf("Offset: %d\n", offset);
     int length_of_record = arr[1];
-    //printf("offset: %d and Length of record: %d\n", offset, length_of_record);
-    //char * current_file_buf;
-    //current_file_buf = (char*)malloc((length_of_record + 1) * sizeof(char));
-    //lseek(fd, offset, 0);
-    //int bytes_read = read(fd, current_file_buf, length_of_record);
-    /*
-    if (bytes_read != length_of_record){
-        //printf("Mismatch between Bytes Read: %d and Length of Record %d \n", bytes_read, length_of_record);
-    }
-    */
     int size_of_key;
     int size_of_value;
     memcpy(&size_of_key, location+ offset, sizeof(int));
@@ -80,9 +85,7 @@ char *get(char *key){
     found_key = (char*) malloc ((size_of_key + 1) * sizeof(char));
     memcpy(found_key, location+ offset + sizeof(int) + sizeof(int), size_of_key);
     found_key[size_of_key] = '\0';
-    //printf("Found Key: %s, key: %s\n", found_key, key);
     if (strcmp(found_key, key) != 0){
-        //printf("Found key %s is not equal to inputted key: %s ", found_key, key);
         pthread_mutex_unlock(&mtx);
         return "Keys are not equal in DB";
     }
@@ -93,200 +96,226 @@ char *get(char *key){
     if (strcmp(tombstone, found_value) == 0){
         pthread_mutex_unlock(&mtx);
         return "Key Does Not Exist";
-
     }
     pthread_mutex_unlock(&mtx);
     free(found_key);
-
     link_node *node = lru_get_value(manager->lru_hash_map, path);
-
     node-> pin = 0;
     memset(path, 0, 256);
-    //free(found_value);
-    //std::string s(found_value);
     return found_value;
 }
-void check_page_fault(){
-    char current_file_buffer [1024];
-    int fd;
-    char path[256];
-    snprintf(path, sizeof(path), "db/%d", directory_buffer[current_fd_buffer_index]);
-    fd = open(path, O_RDWR|O_CREAT, 0666);
-    lseek(fd, 0L, 0);
-    int size_in_bytes = read(fd, current_file_buffer, 1024);
-    //printf("size_in_bytes of file %d \n", size_in_bytes);
-    //printf("Size of Bytes %d --> Page Fault %d \n", size_in_bytes, PAGE_FAULT);
-    if (size_in_bytes >= PAGE_FAULT){
-        //printf("Changing Page\n");
-        close(fd);
-        int *copy = malloc(sizeof(int));
-        *copy = current_fd_buffer_index;
-        //printf("copy: %d\n", *copy);
-        directory_buffer[current_fd_buffer_index + 1] = directory_buffer[current_fd_buffer_index]+1;
-        current_fd_buffer_index ++;
-        /*
-        The last file is now essentially immutable, it will never be written to again
-        Only read from
-        */
-        //printf("Current Fd_buffer_index: %d \n", current_fd_buffer_index);
 
-        //printf("New Fd_buffer_index: %d \n", current_fd_buffer_index);
-        dir_byte_count = sizeof(directory_buffer);
-        lseek(dir_fd, 0L, 2);
-        int new_bytes = write(dir_fd, &directory_buffer[current_fd_buffer_index],(sizeof(int)));
-        //printf("new_bytes %d \n", new_bytes);
-        char path[256];
-        snprintf(path, sizeof(path), "db/%d", directory_buffer[current_fd_buffer_index]);
-        /*
-        for (int p = 0; p < current_fd_buffer_index+1; p++){
-            //printf("index: %d, file number: %d \n", p, directory_buffer[p]);
-        }
-        */
-        int fd = open(path, O_RDWR|O_CREAT, 0666);
-        close(fd);
-        //printf("file fd %d \n", fd);
-        memset(path, 0, 256);
-        //std::unordered_map<std::string, int*> &map = master_map[directory_buffer[current_fd_buffer_index]];
-        static_hash_map_array *map = construct_hash_map_array();
-        //master_map[directory_buffer[current_fd_buffer_index]] = map;
-        master_add_key_array(master_map, directory_buffer[current_fd_buffer_index], map);
-        //printf("File number %d\n", directory_buffer[current_fd_buffer_index]);
-        //printf("Pointer to map %p \n", &map);
-        pthread_t t1;
-        int s;
-        if (current_fd_buffer_index > FILE_LIMIT){
-            bit_flag = 1;
-            s = pthread_create(&t1, NULL, compaction, copy);
-            pthread_detach(t1);
-            //compaction(directory_buffer, copy);
-            //printf("Current Fd File Index Outside of compaction %d \n", current_fd_buffer_index);
-        }
-    }
-
+void boot_up_buffer_pool(){
+    manager = (buffer_pool*)malloc(sizeof(buffer_pool));
+    manager->block = (char*)malloc(sizeof(char) * 40000);
+    manager->capacity = 10;
+    manager -> lru_hash_map = lru_construct_hash_map();
+    manager->free_frame = (int*)malloc(sizeof(int) * manager->capacity);
+    memset(manager->free_frame, 0, manager->capacity);
+    manager->frame_size = 4000;
+    manager-> page_table = NULL;
+    lru_cache = (doubly_linked_list*)malloc(sizeof(doubly_linked_list));
+    lru_cache->head = (link_node*)malloc(sizeof(link_node));
+    lru_cache->tail = (link_node*)malloc(sizeof(link_node));
+    char head[] = "0";
+    char tail[] = "0";
+    lru_cache->head->value = head;
+    lru_cache->tail-> value = tail;
+    lru_cache->head->next = lru_cache->tail;
+    lru_cache->tail->prev = lru_cache->head;
+    lru_cache->head->prev = NULL;
+    lru_cache->tail->next = NULL;
 }
-int set(char * key, char * value){
-    //printf("key %s\n", key);
-    //printf("Value %s \n", value);
-    if (bit_flag == 0){
-        check_page_fault();
-    }
-    int file_number;
-    pthread_mutex_lock(&mtx);
-    if (bit_flag == 1){
-
-        file_number = directory_buffer[current_fd_buffer_index]; 
+char * read_from_buffer_pool(char *path){
+    if (table_get_value(manager->page_table, path) == NULL){
+        //1. check the free_frame list for a free slot
+        for (int i = 0; i < manager->capacity; i++){
+            if (manager->free_frame[i] == 0){
+                manager->free_frame[i] = 1;
+                table_add_key(&manager -> page_table, path, &manager->block[i*manager->frame_size]);
+                int fd = open(path, O_RDONLY, 0);
+                link_node *node = (link_node*)malloc(sizeof(link_node));
+                node->value = strdup(path);
+                node->pin = 1;
+                lru_add_key(manager->lru_hash_map, path, node);
+                link_node *temp = lru_cache->head->next;
+                lru_cache->head->next = node;
+                node->prev = lru_cache->head;
+                node->next = temp;
+                temp->prev = node;
+                char *location = table_get_value(manager-> page_table, path);
+                read(fd, location, manager->frame_size);
+                return location;
+            }
+        }
+        link_node *node = eviction();
+        char *location = table_get_value(manager->page_table, node->value);
+        memset(location, 0, manager->frame_size);
+        node->value = strdup(path);
+        node->pin = 1;
+        table_add_key(&manager -> page_table, path, location);
+        int fd = open(path, O_RDONLY, 0);
+        lru_add_key(manager->lru_hash_map, path, node);
+        link_node *temp = lru_cache->head->next;
+        lru_cache->head->next = node;
+        node->prev = lru_cache->head;
+        node->next = temp;
+        temp->prev = node;
+        read(fd, location, manager->frame_size);
+        return location;
     }
     else{
-        file_number = directory_buffer[current_fd_buffer_index];
+        char * location = table_get_value(manager-> page_table, path);
+        link_node *node = lru_get_value(manager->lru_hash_map, path);
+        node->pin = 1;
+        link_node *next = node->next;
+        link_node *prev = node->prev;
+        prev->next = next;
+        next->prev = prev;
+        link_node * temp = lru_cache->head->next;
+        lru_cache->head->next = node;
+        node->prev = lru_cache->head;
+        node->next = temp;
+        temp->prev = node;
+        return location;
+    }
+}
+link_node* eviction(){
+    link_node *node = lru_cache->tail->prev;
+    while (node->pin != 0){
+        node = node->prev;
+    }
+    link_node *prev = node-> prev;
+    link_node *next = node-> next;
+    node->next = NULL;
+    node->prev = NULL;
+    prev->next = next;
+    next->prev = prev;
+    return node;
+}
+int table_add_key(HashEntry **page_table, char *path, char *block_ptr) {
+    HashEntry *entry = (HashEntry *)malloc(sizeof(HashEntry));
+
+    entry->path = strdup(path);
+    entry->block_ptr = block_ptr;
+    HASH_ADD_STR(*page_table, path, entry);
+    return 0;
+}
+char* table_get_value(HashEntry *page_table, char *path) {
+    HashEntry *entry;
+    HASH_FIND_STR(page_table, path, entry);
+    if (entry) {
+        return entry->block_ptr;
+    } else {
+        return NULL;
+    }
+}
+void print_linked_list(){
+    link_node * node = lru_cache->head;
+    node = node->next;
+    while (node != lru_cache->tail){
+        printf("string(path) value: %s \n", node->value);
+        node = node->next;
+    }
+}
+void free_buffer_pool(){
+    memset(manager->block, 0, manager->capacity * manager->frame_size);
+    free(manager->block);
+    free(manager->free_frame);
+    free(manager);
+}
+char * write_to_buffer_pool(char * path, int total_length){
+    if (writer_thread_offset + total_length >= manager->frame_size){
+        change_buffer();
+    } 
+    char * location = table_get_value(manager-> page_table, path);
+    link_node *node = lru_get_value(manager->lru_hash_map, path);
+    link_node *next = node->next;
+    link_node *prev = node->prev;
+    prev->next = next;
+    next->prev = prev;
+    link_node * temp = lru_cache->head->next;
+    lru_cache->head->next = node;
+    node->prev = lru_cache->head;
+    node->next = temp;
+    temp->prev = node;
+    return location;
+}
+void change_buffer(){
+    int *copy = malloc(sizeof(int));
+    *copy = current_fd_buffer_index;
+    directory_buffer[current_fd_buffer_index + 1] = directory_buffer[current_fd_buffer_index]+1;
+    current_fd_buffer_index++;
+    int file_number = directory_buffer[current_fd_buffer_index];
+    dir_byte_count = sizeof(directory_buffer);
+    lseek(dir_fd, 0L, 2);
+    int new_bytes = write(dir_fd, &directory_buffer[current_fd_buffer_index],(sizeof(int)));
+    char path[256];
+    snprintf(path, sizeof(path), "db/%d", directory_buffer[current_fd_buffer_index]);
+    int fd = open(path, O_RDWR|O_CREAT, 0666);
+    close(fd);
+    memset(path, 0, 256);
+    snprintf(path, sizeof(path), "db/%d", directory_buffer[*copy]);
+    link_node *node = lru_get_value(manager->lru_hash_map, path);
+    node -> pin = 0;
+    memset(path, 0, 256);
+    snprintf(path, sizeof(path), "db/%d", directory_buffer[current_fd_buffer_index]);
+    fd = open(path, O_RDWR|O_CREAT, 0666);
+    close(fd);
+    read_from_buffer_pool(path);
+    writer_thread_offset = 0;
+    static_hash_map_array *map = construct_hash_map_array();
+    master_add_key_array(master_map, directory_buffer[current_fd_buffer_index], map);
+    if (current_fd_buffer_index > FILE_LIMIT && bit_flag == 0){
+        bit_flag = 1;
+        pthread_t t1;
+        int s;
+        s = pthread_create(&t1, NULL, compaction, copy);
+        pthread_detach(t1);
+    }
+    
+}
+int set(char * key, char * value){
+    int file_number;
+    pthread_mutex_lock(&mtx);
+    file_number = directory_buffer[current_fd_buffer_index]; 
+    char path[256];
+    snprintf(path, sizeof(path), "db/%d", file_number); 
+    int key_length = strlen(key);
+    int val_length = strlen(value);
+    int total_length = (2 * sizeof(int)) + key_length + val_length;
+    char *buf = write_to_buffer_pool(path, total_length);
+    memset(path, 0, 256);
+    int *arr = (int *)malloc(2 * sizeof(int));
+    memcpy(buf + writer_thread_offset, &key_length, sizeof(int));
+    memcpy(buf + writer_thread_offset+sizeof(int), &val_length, sizeof(int));
+    memcpy(buf + writer_thread_offset + (2 * sizeof(int)), key, key_length);
+    memcpy(buf + writer_thread_offset + (2* sizeof(int)) + key_length, value, val_length);
+    total_length = (2 * sizeof(int)) + key_length + val_length;
+    //buf[total_length] = '\0';
+    snprintf(path, sizeof(path), "db/%d", directory_buffer[current_fd_buffer_index]);
+    int fd = open(path, O_RDWR, 0666);
+    long pos = lseek(fd, 0L, 2);
+    int bytes_written;
+    bytes_written = write(fd, buf+writer_thread_offset, total_length);
+    writer_thread_offset += total_length;
+    close(fd);
+    if (bytes_written == total_length){
+        arr[0] = pos;
+        arr[1] = total_length;
+        add_key_array(master_get_value_array(master_map, directory_buffer[current_fd_buffer_index]), key, arr);
+        pthread_mutex_unlock(&mtx);
+        return 0;
     }
     pthread_mutex_unlock(&mtx);
-    char path[256];
-    snprintf(path, sizeof(path), "db/%d", file_number);  
-    int fd = open(path, O_RDWR|O_CREAT, 0666);
-    //printf("file path %d \n", file_number);
-    memset(path, 0, 256);
-    int PAGE_SIZE = 4096;
-    char buf[PAGE_SIZE];
-    int *arr = (int *)malloc(2 * sizeof(int));
-    int key_length = strlen(key);
-    int val_length = strlen(value);
-    memset(buf, 0, PAGE_SIZE);
-    memcpy(buf, &key_length, sizeof(int));
-    memcpy(buf + sizeof(int), &val_length, sizeof(int));
-    memcpy(buf + (2 * sizeof(int)), key, key_length);
-    memcpy(buf + (2* sizeof(int)) + key_length, value, val_length);
-    int total_length = (2 * sizeof(int)) + key_length + val_length;
-    buf[total_length] = '\0';
-    //printf("Total Length: %d\n", total_length);
-    //printf("Size of buf %lu\n", sizeof(buf));
-    long pos = lseek(fd, 0L, 2);
-    //printf("Byte Offset in File %ld \n", pos);
-    int bytes_written;
-    bytes_written = write(fd, buf, total_length);
-    close(fd);
-    //printf("Bytes Written %d \n", bytes_written);
-    if (bytes_written == total_length){
-        //printf("Success \n");
-        //std::string s(key);
-        //std::cout << s << "string \n";
-        //printf("Address of Pointer to array: %p\n", arr);
-        arr[0] = pos;
-        //printf("Working\n");
-        arr[1] = total_length;
-        //printf("Working\n");
-        //printf("Array 1 %d \n", arr[1]);
-        //master_map[file_number][s] = arr;
-        //master_map[file_number]
-        add_key_array(master_get_value_array(master_map, file_number), key, arr);
-        //printf("Working\n");
-        memset(buf, 0, PAGE_SIZE);
-        return 0;
-    }
-    memset(buf, 0, PAGE_SIZE);
-    return -1;
-}
-int setter_for_compaction(char * key, char * value, static_hash_map_array*map, int file_number){
-    //printf("key %s\n", key);
-    //printf("Value %s \n", value);
-    char path[256];
-    snprintf(path, sizeof(path), "db/%d", file_number);    
-    int fd = open(path, O_RDWR|O_CREAT, 0666);
-    //printf("file path %d \n", file_number);
-    memset(path, 0, 256);
-    int PAGE_SIZE = 4096;
-    char buf[PAGE_SIZE];
-    int *arr = (int *)malloc(2 * sizeof(int));
-    int key_length = strlen(key);
-    int val_length = strlen(value);
-    memset(buf, 0, PAGE_SIZE);
-    memcpy(buf, &key_length, sizeof(int));
-    memcpy(buf + sizeof(int), &val_length, sizeof(int));
-    memcpy(buf + (2 * sizeof(int)), key, key_length);
-    memcpy(buf + (2* sizeof(int)) + key_length, value, val_length);
-    int total_length = (2 * sizeof(int)) + key_length + val_length;
-    buf[total_length] = '\0';
-    //printf("Total Length: %d\n", total_length);
-    //printf("Size of buf %lu\n", sizeof(buf));
-    long pos = lseek(fd, 0L, 2);
-    //printf("Byte Offset in File %ld \n", pos);
-    int bytes_written;
-    bytes_written = write(fd, buf, total_length);
-    close(fd);
-    //printf("Bytes Written %d \n", bytes_written);
-    if (bytes_written == total_length){
-        //printf("Success \n");
-        //printf("Address of Pointer to array: %p\n", arr);
-        arr[0] = pos;
-        //printf("Working\n");
-        arr[1] = total_length;
-        //printf("Working\n");
-        //printf("Array 1 %d \n", arr[1]);
-        /*
-        if (master_map.find(file_number) == master_map.end()){
-            printf("Not Found");
-            std::unordered_map<std::string, int*> map;
-            master_map[directory_buffer[current_fd_buffer_index]] = map;
-        }
-        */
-        //printf("Pointer to map %p \n", &map);
-        add_key_array(map, key, arr);
-        //printf("Working\n");
-        memset(buf, 0, PAGE_SIZE);
-        return 0;
-    }
-    memset(buf, 0, PAGE_SIZE);
     return -1;
 }
 void *compaction(void *arg){
-    //std::unordered_map<std::string, std::string> temp_map;
-    //printf("Compaction Begins\n");
     int copy = *(int *)arg;
-    //printf("copy %d\n", copy);
     static_hash_map *temp_map = construct_hash_map();
     char path [256];
     int current_fd_buffer_index_copy = copy;
     int original_buffer_index = copy;
-    //printf("Original Buffer at start of compaction %d\n", original_buffer_index);
     int fd;
     char file_buffer [4096];
     int deleted_group [current_fd_buffer_index_copy];
@@ -300,95 +329,27 @@ void *compaction(void *arg){
         int key_size;
         int value_size;
         int j = 0;
-        //printf("Bytes Read: %d\n", bytes_read);
         while (j < bytes_read){
             memcpy(&key_size, file_buffer + j, sizeof(int));
             memcpy(&value_size, file_buffer+ j + sizeof(int), sizeof(int));
-            //printf("Bytes Key: %d\n", j + sizeof(int) + sizeof(int));
-            //printf("Bytes Value: %d\n", j + sizeof(int) + sizeof(int) + key_size);
             char * key = (char*) malloc(key_size+1);
-            if (key == NULL) {
-                //printf("Failed to allocate memory for key\n");
-            }
             char * value = (char *) malloc(value_size+1);
-            if (value == NULL){
-                //printf("Failed to allocate memory for Value\n");
-            }
             memcpy(key, file_buffer + j + sizeof(int) + sizeof(int), key_size);
             memcpy(value, file_buffer + j + sizeof(int) + sizeof(int) + key_size, value_size);
             key[key_size] = '\0';
             value[value_size] = '\0';
-            //printf("Key: %s\n", key);
-            //printf("Value %s \n", value);
-            //printf("Key Size: %d \n", key_size);
-            //printf("Value Size %d \n", value_size);
             if (strcmp(value, tombstone) != 0){
                 add_key(temp_map, key, value);
             }
-            //printf("TRYING Key: %s\n", get_value(temp_map, key));
             j = j + sizeof(int) + sizeof(int) + key_size + value_size;
-            //free(key);
-            //free(value);
         }
     }
-    //directory_buffer[current_fd_buffer_index_copy + 1] = directory_buffer[current_fd_buffer_index_copy]+1;
-    //current_fd_buffer_index_copy ++;
-    //printf("New Fd_buffer_index: %d \n", current_fd_buffer_index_copy);
-    //lseek(dir_fd, 0L, 2);
-    //int new_bytes = write(dir_fd, &directory_buffer[current_fd_buffer_index_copy],(sizeof(int)));
-    //printf("new_bytes %d \n", new_bytes);
-    //snprintf(path, sizeof(path), "db/%d", directory_buffer[current_fd_buffer_index]);
-    //printf("Path %s \n", path);
-    //fd = open(path, O_RDWR|O_CREAT, 0666);
-    //memset(path, 0, 256);
-    //std::unordered_map<std::string, int*> &map = master_map[directory_buffer[current_fd_buffer_index_copy]];
-    //static_hash_map_array *map = construct_hash_map_array();
-    //master_map[directory_buffer[current_fd_buffer_index_copy]] = map;
-    //master_add_key_array(master_map, directory_buffer[current_fd_buffer_index_copy], map);
-    //char new_file_buf[1024];
-    // What happens if we write to directory buf at same time?? This is where we may need to rethink
-    // Either need to introduce locking or a completely new buffer and merge the buffers after
     for (int i=0; i < temp_map->total_size; i++) {
         if (strcmp(temp_map->hash_map[i].key, null_value_array) == 0){
-            //printf("EQUALS %d", i);
             continue;
         }
-        //printf("key: %s, null_value: %s\n", temp_map->hash_map[i].key, null_value_array);
-        //char *key = (char *) malloc ((pair.first.size() + 1) * sizeof(char));
-        //char *value = (char *) malloc ((pair.second.size() + 1) * sizeof(char));
-        //std::strcpy(key, pair.first.c_str());
-        //std::strcpy(value, pair.second.c_str());
-        //lseek(fd, 0L, 2);
-        //printf("String key %s \n", temp_map->hash_map[i].key);
         set(temp_map->hash_map[i].key, temp_map->hash_map[i].value);
-        //lseek(fd, 0L, 0);
-        //int bytes_count = read(fd, new_file_buf, 1024);
-        //printf("Current buffer index postwrite %d", current_fd_buffer_index_copy);
-        //printf("Bytes Read after Lseek %d \n", bytes_count);
-        //char* return_value = get(temp_map->hash_map[i].key, directory_buffer, current_fd_buffer_index_copy);
-        //std::cout << "Return Value, " << return_value << "\n";
-        /*
-        if (bytes_count > PAGE_FAULT){
-            directory_buffer[current_fd_buffer_index + 1] = directory_buffer[current_fd_buffer_index]+1;
-            current_fd_buffer_index ++;
-            //printf("New Fd_buffer_index: %d \n", current_fd_buffer_index_copy);
-            int dir_byte_count = sizeof(directory_buffer);
-            lseek(dir_fd, 0L, 2);
-            int new_bytes = write(dir_fd, &directory_buffer[current_fd_buffer_index_copy],(sizeof(int)));
-            //printf("new_bytes %d \n", new_bytes);
-            char path[256];
-            snprintf(path, sizeof(path), "db/%d", directory_buffer[current_fd_buffer_index_copy]);
-            int fd = open(path, O_RDWR|O_CREAT, 0666);
-            memset(path, 0, 256);
-            //std::unordered_map<std::string, int*> &map = master_map[directory_buffer[current_fd_buffer_index_copy]];
-            static_hash_map_array *map = construct_hash_map_array();
-            //master_map[directory_buffer[current_fd_buffer_index_copy]] = map;
-            master_add_key_array(master_map, directory_buffer[current_fd_buffer_index_copy], map);
-        }
-        memset(new_file_buf, 0, 1024);
-        */
     }
-    //lseek(fd, 0L, 2);
     int new_directory_buffer [1024];
     int j = 0;
     for (int i = original_buffer_index+1; i < current_fd_buffer_index+1;i++){
@@ -396,26 +357,17 @@ void *compaction(void *arg){
         j ++;
     }
     pthread_mutex_lock(&mtx);
-    //printf("entered lock\n");
     for (int i = 0; i < original_buffer_index+1; i++){
-        //printf("i %d\n", i);
         char path[256];
         snprintf(path, sizeof(path), "db/%d", directory_buffer[i]);
-        //printf("i %s\n", path);
         master_delete_key_array(master_map, directory_buffer[i]);
         remove(path);
         memset(path, 0, 256);
     }
-    //printf("Original Buffer Index %d\n", original_buffer_index);
-    //printf("new buffer index %d\n",current_fd_buffer_index_copy);
     current_fd_buffer_index = current_fd_buffer_index - (original_buffer_index+1);
-    //printf("Current Fd Buffer Index %d \n", current_fd_buffer_index);
     memcpy(directory_buffer, new_directory_buffer, sizeof(int) * (current_fd_buffer_index+1));
-    //printf("size of directory buffer %lu\n", sizeof(int) * (current_fd_buffer_index+1));
     int new_bytes_new = write(dir_fd, new_directory_buffer, sizeof(int) * (current_fd_buffer_index+1));
-    //printf("New Bytes: %d \n", new_bytes_new);
     free_memory_hash_map(temp_map);
-    //printf("exiting lock\n");
     pthread_mutex_unlock(&mtx);
     bit_flag = 0;
     return NULL;
@@ -430,45 +382,31 @@ int construct_hash_map_from_directory(){
         return -1;
     }
     int bytes_read_dir = read(dir_fd, directory_buffer, 1024);
-    //printf("Bytes Read Directory %d\n", bytes_read_dir);
     int fd;
     if (bytes_read_dir == 0){
-        /*
-        Need to create a directory and original hash_map for files based on fd
-        */
        static_hash_map_array *map = construct_hash_map_array();
-       //master_map[0] = map;
        master_add_key_array(master_map, 0, map);
        directory_buffer[0] = 0;
        dir_byte_count = sizeof(int);
-       //printf("size of directory %zu \n", dir_byte_count);
        int dir_bytes_read = write(dir_fd, directory_buffer,dir_byte_count);
-       //printf("Bytes Written %d \n", dir_bytes_read);
        char path[256];
        snprintf(path, sizeof(path), "db/%d", directory_buffer[0]);
        fd = open(path, O_RDWR|O_CREAT, 0666);
-       memset(path, 0, 256);
        current_fd_buffer_index = 0;
+       read_from_buffer_pool(path);
+       memset(path, 0, 256);
     }
     else{
-        /*
-        Construction of Keydir in memory hash map based on log files
-        */
-        //printf("Else Case \n");
         int file_descriptors_written = bytes_read_dir / sizeof(int);
-        //printf("file descriptors Written %d \n", file_descriptors_written);
         char file_buffer[1024];
         for (int i = 0; i < file_descriptors_written; i++){
             static_hash_map_array *map = construct_hash_map_array();
-            ///std::unordered_map<std::string, int*>& map = master_map[directory_buffer[i]];
-            //master_map[directory_buffer[i]] = map;
             master_add_key_array(master_map, i, map);
             char path[256];
             snprintf(path, sizeof(path), "db/%d", directory_buffer[i]);
             fd = open(path, O_RDONLY, 0);
             memset(path, 0, 256);
             int bytes_read = read(fd, file_buffer, 1024);
-            //printf("Bytes Read: %d\n", bytes_read);
             int key_size;
             int value_size;
             int j = 0;
@@ -481,19 +419,9 @@ int construct_hash_map_from_directory(){
                 memcpy(value, file_buffer + j + sizeof(int) + sizeof(int) + key_size, value_size);
                 key[key_size] = '\0';
                 value[value_size] = '\0';
-                //printf("Key: %s\n", key);
-                //printf("Value %s \n", value);
-                //printf("Key Size: %d \n", key_size);
-                //printf("Value Size %d \n", value_size);
-                //get rid of std::string
-                //std::string key_s(key);
                 int *arr = (int*)malloc(2 * sizeof(int));
-                //printf("Pointer to array %p \n", arr);
-                //printf("J: %d \n", j);
-                //printf("Offset: %lu \n", sizeof(int) + sizeof(int) + key_size + value_size);
                 arr[0] = j;
                 arr[1] = sizeof(int) + sizeof(int) + key_size + value_size;
-                //map[key_s] = arr;
                 add_key_array(map, key, arr);
                 j = j + sizeof(int) + sizeof(int) + key_size + value_size;
                 free(key);
@@ -501,6 +429,7 @@ int construct_hash_map_from_directory(){
             }
             close(fd);
             current_fd_buffer_index = i;
+            
         }
     }
     return 0;
@@ -594,13 +523,6 @@ int construct_hash_map_from_directory(){
             char path[256];
             snprintf(path, sizeof(path), "db/%d", directory_buffer[i]);
             master_delete_key_array(master_map, directory_buffer[i]);
-            /*
-            auto it = master_map.find(directory_buffer[i]);
-            if (it != master_map.end()) { 
-                //printf("%s Path being erased\n", path);
-                master_map.erase(it); 
-            } 
-            */
             remove(path);
         }
         // flush the directory too
@@ -608,8 +530,5 @@ int construct_hash_map_from_directory(){
         char path[] = "db/directory";
         remove(path);
     }
-/*
-int main(){
-    int return_value = command_line_interface();
-}
-*/
+
+
