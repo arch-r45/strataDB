@@ -5,7 +5,12 @@
 
 [UnearthDB]: https://github.com/arch-r45/unearthDB/blob/main/docs/pictures/UnearthDB.png
 
+[Introduction](#introduction)
 
+
+
+
+## Introduction
 
 Most Database Management Systems follow a relational model, where each file on disk is an individual table of the database, and these files are brought into memory usually in 4 KB pages depending on what record is trying to be read.  The relational model acts as a general purpose database which is part of why it's been a mainstay for over 50 years and will continue to be. [1]  Popular implementations consist of Oracle DB, MYSQL, PostgresQL and SQlite3.   RDBMS’s ensure ACID properties, allow for widespread querying of data with range queries and joins, and generally have scalable performance for most workloads.   The general rule of thumb, however, is that RDBMS’s are the optimal option for read-heavy workloads but LSM Trees(NOSQL model) are optimal for write-heavy workloads. [2]  This difference in write throughput is due to the architectural designs of the implementation of the systems.   
 
