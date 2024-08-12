@@ -10,6 +10,7 @@
 [Introduction](#introduction)  
 [System Bootup](#System-Bootup)  
 [Buffer Pool Manager](#Buffer-Pool-Manager)  
+[Set API](#set-api)  
 
 ## Overview
 
