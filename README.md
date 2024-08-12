@@ -5,9 +5,13 @@
 
 [UnearthDB]: https://github.com/arch-r45/unearthDB/blob/main/docs/pictures/UnearthDB.png
 
+
+[Overview](#overview)
 [Introduction](#introduction)
 
+## Overview
 
+In this repository, I implement a persistent, multithreaded key value log store based on bitcask.  I implement this in C using the Linux Operating system and package it into a Docker container.  I use Linux DIRECT_IO to bypass the operating systems buffer cache and implement my own buffer pool manager that handles page replacement intelligently in user space.  This also avoids double caching that hinders systems like PostgresQL who choose to implement their own buffer pool manager but not use DIRECT_IO.  My implementation is able to perform 15,000 persistent writes per second which is a big improvement on similar hardware to the original Bitcask paper of 6000 writes per second.  I also implement a thread safe, compaction algorithm that runs in a background thread.  The compaction algorithm saves 99 GB of space for every 100GB written by eliminating the vast majority of redundant data.  
 
 
 ## Introduction
@@ -45,4 +49,7 @@ I implement my own version of Bitcask by following most of the design choices of
 
 
 [1]: https://db.cs.cmu.edu/papers/2024/whatgoesaround-sigmodrec2024.pdf
-[2]: Kleppmann, M. (2017). Designing data-intensive applications: The big ideas behind reliable, scalable, and maintainable systems. O'Reilly Media.
+[2]: https://dataintensive.net/
+[3]: https://db-book.com/
+[4]: https://riak.com/assets/bitcask-intro.pdf
+[5]: https://db.cs.cmu.edu/papers/2022/cidr2022-p13-crotty.pdf
