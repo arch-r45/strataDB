@@ -206,7 +206,7 @@ int test5(){
     char key2[] = "Rogan";
     char key3[] = "Shakespeare";
     clock_t start = clock();
-    int upper_bound = 6000;
+    int upper_bound = 15000;
     for (int i = 0; i < upper_bound; i++){
         int length = snprintf(NULL, 0, "%d", i);
         char *val = (char*)malloc(length+1);
@@ -225,19 +225,19 @@ int test5(){
     double time_taken = ((double)(end - start)) / CLOCKS_PER_SEC;
     printf("Number of Writes: %d writes\nTime taken: %f seconds\n", upper_bound, time_taken);
     char * return_value = get(key1);
-    if (strcmp(return_value, "5997")!= 0){
+    if (strcmp(return_value, "14997")!= 0){
         failure = 0;
-        printf("Return Value = %s instead of %s \n", return_value, "5997");
+        printf("Return Value = %s instead of %s \n", return_value, "14997");
     }
     return_value = get(key2);
-    if (strcmp(return_value, "5998")!= 0){
+    if (strcmp(return_value, "14998")!= 0){
         failure = 0;
-        printf("Return Value = %s instead of %s \n", return_value, "5998");
+        printf("Return Value = %s instead of %s \n", return_value, "14998");
     }
     return_value = get(key3);
-    if (strcmp(return_value, "5999")!= 0){
+    if (strcmp(return_value, "14999")!= 0){
         failure = 0;
-        printf("Return Value = %s instead of %s \n", return_value, "5999");
+        printf("Return Value = %s instead of %s \n", return_value, "14999");
     }
     sleep(2);
     return failure; 
