@@ -9,7 +9,7 @@
 [Overview](#overview)
 [Introduction](#introduction)
 [System Bootup](#System-Bootup )
-[Buffer Pool Manager](##buffer-pool-manager)
+[Buffer Pool Manager](#Buffer-Pool-Manager)
 
 ## Overview
 
@@ -31,7 +31,7 @@ This takes advantage of sequential I/O where the disk arm seeks are kept to a mi
 
 [disk]: https://github.com/arch-r45/unearthDB/blob/main/docs/pictures/disk_diagram.png
 
-Also, by never rewriting existing pages, write amplification is reduced.  Write amplification never used to be of much concern for disk oriented storage, but the rise of fast SSD storage has made avoiding write amplification important.  This is because SSDs can only overwrite the same blocks a limited number of times before wearing out in comparison to traditional disks which usually have a mean time to failure of over 50 years.  [2, 3]  There are obviously some disadvantages and tradeoffs you are making when you use this structure and like everything in computer science, there is no free lunch.  Because you are never updating old segments, you end up having a large amount of duplicate records in your file, and LSM trees can run a compaction algorithm in the background, but this can sometimes interfere with performance or in some cases lag behind and never catch up.  Also transactional guarantees are more difficult to ensure in LSM Trees due to the data being written possibly in multiple locations which leads to applications choosing B tree Databases in applications where transactional guarantees matter like banking.  Popular implementations of LSM trees are LevelDB from Google and a fork of LevelDB, RocksDB, from Facebook.   
+Also, by never rewriting existing pages, write amplification is reduced.  Write amplification never used to be of much concern for disk oriented storage, but the rise of fast SSD storage has made avoiding write amplification important.  This is because SSDs can only overwrite the same blocks a limited number of times before wearing out in comparison to traditional disks which usually have a mean time to failure of over 50 years. [2] [3]  There are obviously some disadvantages and tradeoffs you are making when you use this structure and like everything in computer science, there is no free lunch.  Because you are never updating old segments, you end up having a large amount of duplicate records in your file, and LSM trees can run a compaction algorithm in the background, but this can sometimes interfere with performance or in some cases lag behind and never catch up.  Also transactional guarantees are more difficult to ensure in LSM Trees due to the data being written possibly in multiple locations which leads to applications choosing B tree Databases in applications where transactional guarantees matter like banking.  Popular implementations of LSM trees are LevelDB from Google and a fork of LevelDB, RocksDB, from Facebook.   
 
 Both index structures allow for a large number of keys, because the sorted order allows you to not have to keep all the keys in memory.  This is because if you have a subset of the keys in memory and their subsequent byte offsets, you can easily determine where the location is of your record based on the sorted property.  However, as RAM has become cheaper, it's becoming feasible to keep your entire database completely in memory.  Memory is not persistent, meaning if the power goes out, your database is lost.  Different implementations of main memory databases have come up with different solutions to this problem.  Memcached, which is a cache only database, does not care about persistence.  The key value store Redis writes keys asynchronously where it's okay if some data is lost.  
 
@@ -80,9 +80,32 @@ For me, constructing the hashmaps consisted of simply reading all the files into
 
 [buffer]: https://github.com/arch-r45/unearthDB/blob/main/docs/pictures/bufferpool.png
 
+Virtual memory in operating systems is the idea that we need to be able to execute a process that is larger than available memory.  One reason is because your computer usually has numerous processes running simultaneously, so each process can’t have access to all available memory on a system. Another reason we want to do this is because we have way less RAM than disk space, and in the typical Von Neumann architecture of a computer, we need to bring programs and data into memory for them to be eligible to execute on a CPU.  The way the OS allows this to happen is through demand paging.  When we need a file from disk, we read it from disk, store it in a physical memory location, expose the process to a logical location of that physical memory and allow the process to access that memory.  Because reading from disk is orders of magnitude slower than reading from RAM, and processes need to reuse certain pieces of memory, it makes no sense to relinquish that memory after use. [7]
+
+
+![alt text][memory]
+
+[memory]: https://github.com/arch-r45/unearthDB/blob/main/docs/pictures/memory.png
+
+Therefore the operating system's job is to try to give the illusion to the running process that every piece of data they access is in memory even if the amount of data is greater than the total available memory on the system.  The way they do this is through a buffer cache.  When a file is read by a process, first the OS checks if the file is in the buffer cache, if it is, it returns a pointer to that memory location.  If it's not, it checks a free frame list to see if there are any free frames available in the buffer cache.  If there are free frames, it then makes the call to disk and loads the file contents in the memory location that was free, then returns a pointer to that memory location.  If there are no free frames, it then needs to evict data that is not being used from the buffer cache, to free up space for the new file. [7] There have been many papers and different attempts on the best eviction protocols, but Least Recently Used(LRU) eviction policies are what most operating systems use.  The idea is that a doubly linked list is used with a sentinel (dummy) variable at the head and a sentinel variable at the tail to mark the insertion and deletion locations.  Everytime something is accessed from the buffer pool it is added to the front of the link list.  This is done even if the page is located in the middle of the linked list or its being read in for the first time.  This can be done in O(1) constant time even if the value is already in the middle of the linked list because all you have to do is connect the previous nodes pointer to the next nodes pointer and vice versa.  When you need to evict, you simply connect the tail.prev pointer to current_node.prev pointer and vice versa. [8]
+
+
+There is a boot up call to the buffer pool manager that initializes the buffer_pool struct which is the main struct for the buffer pool.  The main variables here are the pointer to block which points to the first memory address of the block of the big block of memory that is going to be added when we call 
+
+```c
+void boot_up_buffer_pool();
+```
+
+We will allocate a fixed amount of bytes when we make the call and also have control over the size of the page.  The only requirement is the pages need to be the same size throughout the block.  Without this requirement, pointer arithmetic would be harder and there lacks a valid reason to have different sizes when we are just reading and writing from log files.  Usually block sizes are 4 KB or 8 KB even in relational databases  and there's a couple main reasons for this. First, I/O system calls are expensive, we do not want to bring in one record to a block everytime we make an I/O system call; we would rather just bring in the whole block and perhaps use some of the other data at another time.  Also 4KB is the max upper limit the operating system guarantees that the write will happen atomically.  Anything more than 4KB and we risk the I/O scheduler reordering our write call and perhaps losing some of the data in a system crash which therefore makes it impossible to guarantee that the transaction was atomic.  Atomicity is obviously a huge deal in transactional guarantees, and we need this all or nothing property to hold in most databases.  
+
+
+
+
 [1]: https://db.cs.cmu.edu/papers/2024/whatgoesaround-sigmodrec2024.pdf
 [2]: https://dataintensive.net/
 [3]: https://db-book.com/
 [4]: https://riak.com/assets/bitcask-intro.pdf
 [5]: https://db.cs.cmu.edu/papers/2022/cidr2022-p13-crotty.pdf
 [6]: https://man7.org/tlpi/
+[7]: https://os-book.com/OS10/index.html
+[8]: https://mitpress.mit.edu/9780262046305/introduction-to-algorithms/
