@@ -9,6 +9,7 @@
 [Overview](#overview)
 [Introduction](#introduction)
 [System Bootup](#System-Bootup )
+[Buffer Pool Manager](##buffer-pool-manager)
 
 ## Overview
 
@@ -49,7 +50,7 @@ The underlying index structure for Bitcask is a hashmap and the storage structur
 
 I implement my own version of Bitcask by following most of the design choices of the original authors and I extend their implementation with my own choices and optimizations.  Some differences arise due to me choosing to use C in order to have full control over the memory management of the process versus the Bitcask authors using the language, Erlang.  The biggest difference in architecture arose from me choosing to implement my own buffer pool manager and not rely on the operating system to manage the buffer cache.  This has been a highly contested debate within database architecture with the majority of experts and implementations siding with not relying on the OS to perform buffering. [5]  When people are designing their own database implementations it can be enticing to use the system call MMAP() which memory maps files to a logical address space.  You are getting the buffer management for free which can save a lot of development time because getting the buffer pool manager to work properly can be tricky.  Also kernel developers have spent a long time perfecting the OS’s buffer cache so why make it from scratch?  The argument against MMAP() is that the operating system has no idea what is happening in your database so therefore can't make choices as intelligently as the database developer over which pages to keep in memory, which to bring into memory and which to evict.  RocksDB was a fork of LevelDB and the first change they made was to get rid of MMAP and implement their own buffer pool manager.  
 
-## System-Bootup
+## System Bootup
 
 At system bootup, I first initialize a buffer separate from my buffer pool manager called directory_buffer.  At first, this seems to violate the sequential writes advantages of a log structured output file DB.  Yes, random access is required with a directory log, but the cost of writes is amortized over time because you are only performing random writes every 4096 bytes(size of each page).  This is because we only need to write the directory buffer when we add a new file number to it and this only occurs when we run out of space on the current page and move onto the next page.  The directory buffer is very simple but also very important.  It records the file number of each file and persists this on disk in case of system crash where we can then reboot and rebuild the subsequent hash maps.  We also need the directory buffer in memory to be able to loop through all the hash maps in order to read older keys, and compact the files together. 
 
