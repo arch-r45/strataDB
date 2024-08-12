@@ -113,7 +113,7 @@ char * read_from_buffer_pool(char *path)
 ```
 We accept, as input, a pointer to a string path that represents the log file path of the file we are trying to access and we output a pointer to the address of the beginning of the block in our buffer pool where this file is located.  This makes the API that we are exposing very similar to a read() system call,  therefore expressing a high degree of modularity by keeping the components from becoming too intertwined.  Once the call is made, we check if the path is already in our buffer pool, and if it is, we return a pointer to that location and we send the node representing the path to the front of our lru_cache.   We keep a hash map called a page table which can be used to efficiently check in constant time if our path is already in our buffer pool.  If the path is not already in our buffer pool, we try to see if there are any free frames in our free frame list.  If there are free frames, we read the file from disk into the free location and set the path to that location in our page_table while also adding the node to the front of the lru_cache.  If the free frame list is empty, we need to evict.  My eviction policy is an LRU cache which I described above but I want to try different variations of it.  I also want to experiment with a Least Frequently Used(LFU) Cache for this use case but it's hard to make this work well on modern hardware. [3]  
 
-One of the most important parts of the buffer pool is making sure to pin certain blocks of memory in place when they are being accessed by some thread.  In a concurrent application with many workers fulfilling concurrent read operations, problems can arise without pinning certain memory blocks down.  This can occur if one thread accesses a block of memory, and in the middle of its operation, another thread forces the system to evict, and the memory location that the first thread was accessing still is the same memory location, but the data inside that changes.  In my application, I avoided having concurrent reads initially but it is something I am looking to add.  However, I still needed to implement a pinning mechanism because my compaction algorithm is running in parallel to my main thread.  The compaction algorithm also runs a greater risk of getting blocks evicted because it performs linear scans through older files while the main thread is quickly serving reads on more current files.
+One of the most important parts of the buffer pool is making sure to pin certain blocks of memory in place when they are being accessed by some thread.  In a concurrent application with many workers fulfilling concurrent read operations, problems can arise without pinning certain memory blocks down.  This can occur if one thread accesses a block of memory, and in the middle of its operation, another thread forces the system to evict, and the memory location the first thread was accessing is in the same memory location, but the data inside that location changes.  In my application, I avoided having concurrent reads initially but it is something I am looking to add.  However, I still needed to implement a pinning mechanism because my compaction algorithm is running in parallel to my main thread.  The compaction algorithm also runs a greater risk of getting blocks evicted because it performs linear scans through older files while the main thread is quickly serving reads on more current files.
 
 The biggest problem of pinning is the risk of thrashing.  Thrashing is another concept from operating systems, and its definition is when a process spends more time paging new files then executing.  This can happen if the number of concurrent processes(or threads in databases) is too high, and each time a process tries to access a file, it page-faults and needs to evict some other process from memory.  In most operating systems, the CPU then gets underutilized and therefore increases the degree of multiprogramming, resulting in more thrashing.  [7]
 
@@ -123,6 +123,25 @@ The biggest problem of pinning is the risk of thrashing.  Thrashing is another c
 [thrashing]: https://github.com/arch-r45/unearthDB/blob/main/docs/pictures/thrashing.png
 
 In database systems we are not immune to performance issues in regard to thrashing because we use pins.  Some operating systems use different but similar types of pins as well and they run into performance degradation because the new processes end up in queues waiting to be serviced longer than they spend executing, destroying performance.[7]  When we implement concurrent reads, we need to ensure the tradeoffs between parallelism and cache misses are balanced to avoid performance decline.  
+
+
+## Set API
+
+Our set call takes as input a pointer to a character array as the key and a pointer to the character array as the value and returns an integer of 0 for success and - 1 for failure.  
+```c
+ int set(char * key, char * value)
+```
+
+Because we only have one writer thread to take advantage of sequential access being orders of magnitude faster than random access, we need to index into our directory buffer and receive the current file.  It's important that right before we access our current file, we set a mutex lock.  This is because our compaction thread is also writing new records concurrently and could cause the current file index to actually change and we try to write to an invalid memory location resulting in a segmentation fault.  This mutex ensures over the course of our set call, no other thread competing for the same resource in our critical section can be touched.  This obviously slows a program down because the compaction thread will have to wait until the resource is available, but correctness of a program is more important than speed. 
+
+
+![alt text][setkey]
+
+[setkey]: https://github.com/arch-r45/unearthDB/blob/main/docs/pictures/set_key.png
+
+
+How the data is represented in the file is shown above.  We use two 32 bit integers to determine the size of the key and values respectively and then write the key and values out.  All these are written out to disk in binary and the reason for having the key and value sizing is to avoid the need for escape characters ‘\0’ or delimiters and to be able to quickly load the key and value into character arrays upon retrieval.  We make a call to write_to_buffer_pool and this is used to return the buffer location and also check to make sure the number of bytes being written does not exceed the capacity of the current buffer.  If it does, the current page we are on becomes immutable, and we switch pages.  We also check if the current number of files exceeds a certain amount, which would invoke our compaction process which we describe later on.  This check allows for us to have as little internal fragmentation within our files as possible while still maintaining the property that no individual record is in more than one file.
+
 
 
 
