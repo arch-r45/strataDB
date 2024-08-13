@@ -1,17 +1,15 @@
 # Persistent, multithreaded key value log store written in c
 
+[Overview](#overview)  
+[Introduction](#introduction)  
+[System Bootup](#System-Bootup)  
+[Buffer Pool Manager](#Buffer-Pool-Manager)  
+[Buffer Pool Implementation](#buffer-pool-implementation)   
+[Set API](#set-api)   
 
 ![alt text][UnearthDB]
 
 [UnearthDB]: https://github.com/arch-r45/unearthDB/blob/main/docs/pictures/UnearthDB.png
-
-
-[Overview](#overview)  
-[Introduction](#introduction)  
-[System Bootup](#System-Bootup)  
-[Buffer Pool Manager](#Buffer-Pool-Manager)
-[Buffer Pool Implementation](#buffer-pool-implementation)  
-[Set API](#set-api)  
 
 ## Overview
 
@@ -177,7 +175,7 @@ Once we then perform the write() system call, we add the string key as our key t
 
 [structure]: https://github.com/arch-r45/unearthDB/blob/main/docs/pictures/hash_map_structure.png
 
-> Hash Map In Memory Indexing Structure
+> In Memory Hash Map Indexing Structure
 
 
 ## Get API
