@@ -59,7 +59,7 @@ The underlying index structure for Bitcask is a hashmap and the storage structur
 
 [compaction-diagram]: https://github.com/arch-r45/unearthDB/blob/main/docs/pictures/compaction-diagram.png
 
-> View Count of a Popular Youtube Video (Source: *youtube.com*)
+> Compaction Algorithm on Sorted Keys (Source: *Designing Data-Intensive Applications*)
 
 I implement my own version of Bitcask by following most of the design choices of the original authors and I extend their implementation with my own choices and optimizations.  Some differences arise due to me choosing to use C in order to have full control over the memory management of the process versus the Bitcask authors using the language, Erlang.  The biggest difference in architecture arose from me choosing to implement my own buffer pool manager and not rely on the operating system to manage the buffer cache.  This has been a highly contested debate within the database architecture community with the majority of experts and implementations siding with not relying on the OS to perform buffering. [5]  When people are designing their own database implementations it can be enticing to use the system call MMAP() which memory maps files to a logical address space.  You are getting the buffer management for free which can save a lot of development time because getting the buffer pool manager to work properly can be tricky.  Also kernel developers have spent a long time perfecting the OS’s buffer cache so why make it from scratch?  The argument against MMAP() is that the operating system has no idea what is happening in your database so therefore can't make choices as intelligently as the database developer over which pages to keep in memory, which to bring into memory and which to evict.  I do not choose to use MMAP() in my database and choose to use Direct_IO on Linux.  Direct_IO bypasses the operating systems buffer cache when the original call to open() is made and allows the user space to handle buffering. [6] Mac OS does not allow for Direct_IO and forces you to give hints, but the hints may or may not be received.  This leads to the double caching problem that systems like PostgresQL run into.  At system boot up, PostgresQL can only allocate half of the memory compared to other systems like MYSQL and RocksDB because of this double caching problem.  Double Caching means that the systems themselves are managing their own buffer pool but they are reading files through the operating system which means these files are being loaded into the operating systems buffer cache as well.  This is redundant because we do not need to buffer data in two separate places.  RocksDB was a fork of LevelDB and the first change they made was to get rid of MMAP and implement their own buffer pool manager.   
 
@@ -73,7 +73,7 @@ open(path, O_RDWR|O_DIRECT, 0666);
 
 [open-call]: https://github.com/arch-r45/unearthDB/blob/main/docs/pictures/opencall.png
 
-> Compaction Algorithm on Sorted Keys (Source: *Designing Data-Intensive Applications*[2])
+> Linux open() Flags (Source: *The Linux Programming Interface*[6])
 
 ## System Bootup
 
@@ -87,11 +87,11 @@ Some implementations use popular libraries for encoding binary objects into byte
 
 [dir_buf]: https://github.com/arch-r45/unearthDB/blob/main/docs/pictures/dir_buf.png
 
-> My directory buffer 
+> My directory buffer
 >
->```
-c int directory_buffer[1024]
->```
+> ```c
+> int directory_buffer[1024];
+> ```
 
 For me, constructing the hashmaps consisted of simply reading all the files into memory and going through and constructing each hashmap in a linear scan fashion.  This can be slow and make boot-ups very time intensive if the number of files is very large.  Bitcask solves this problem by constructing a hint file during compaction of existing keys, which can greatly speed up boot up time.  If the hint file for a particular file exists, the database scans that one instead, which just contains the keys and the offsets, and the full metadata is in the normal file.  This is something that I neglected but the implementation would not be too hard to add at a later point. 
 
