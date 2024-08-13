@@ -36,7 +36,7 @@ This takes advantage of sequential I/O where the disk arm seeks are kept to a mi
 
 [disk]: https://github.com/arch-r45/unearthDB/blob/main/docs/pictures/disk_diagram.png
 
-*Diagram of Magnetic Disk (Source: Operating System Concepts-Tenth Edition)*
+> *Diagram of Magnetic Disk (Source: Operating System Concepts-Tenth Edition)*
 
 Also, by never rewriting existing pages, write amplification is reduced.  Write amplification never used to be of much concern for disk oriented storage, but the rise of fast SSD storage has made avoiding write amplification important.  This is because SSDs can only overwrite the same blocks a limited number of times before wearing out[2] in comparison to traditional disks which usually have a mean time to failure of over 50 years. [3]  There are obviously some disadvantages and tradeoffs you are making when you use this structure and like everything in computer science, there is no free lunch.  Because you are never updating old segments, you end up having a large amount of duplicate records in your file, and LSM trees can run a compaction algorithm in the background, but this can sometimes interfere with performance or in some cases lag behind and never catch up.  Also transactional guarantees are more difficult to ensure in LSM Trees due to the data being written possibly in multiple locations which leads to applications choosing B tree Databases in applications where transactional guarantees matter, like banking.  Popular implementations of LSM trees are LevelDB from Google and a fork of LevelDB [11], RocksDB, from Facebook [12].
 
