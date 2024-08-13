@@ -9,7 +9,8 @@
 [Overview](#overview)  
 [Introduction](#introduction)  
 [System Bootup](#System-Bootup)  
-[Buffer Pool Manager](#Buffer-Pool-Manager)  
+[Buffer Pool Manager](#Buffer-Pool-Manager)
+[Buffer Pool Implementation](#buffer-pool-implementation)  
 [Set API](#set-api)  
 
 ## Overview
@@ -87,7 +88,7 @@ Some implementations use popular libraries for encoding binary objects into byte
 
 [dir_buf]: https://github.com/arch-r45/unearthDB/blob/main/docs/pictures/dir_buf.png
 
-> My directory buffer
+> My directory buffer:
 >
 > ```c
 > int directory_buffer[1024];
@@ -96,12 +97,7 @@ Some implementations use popular libraries for encoding binary objects into byte
 For me, constructing the hashmaps consisted of simply reading all the files into memory and going through and constructing each hashmap in a linear scan fashion.  This can be slow and make boot-ups very time intensive if the number of files is very large.  Bitcask solves this problem by constructing a hint file during compaction of existing keys, which can greatly speed up boot up time.  If the hint file for a particular file exists, the database scans that one instead, which just contains the keys and the offsets, and the full metadata is in the normal file.  This is something that I neglected but the implementation would not be too hard to add at a later point. 
 
 ## Buffer Pool Manager
-
-![alt text][buffer]
-
-[buffer]: https://github.com/arch-r45/unearthDB/blob/main/docs/pictures/bufferpool.png
-
-> My buffer pool in the midst of executing a read_from_buffer_pool() call.  
+ 
 
 Virtual memory in operating systems is the idea that we need to be able to execute a process that is larger than available memory.  One reason is because your computer usually has numerous processes running simultaneously, so each process can’t have access to all available memory on a system. Another reason we want to do this is because we have way less RAM than disk space, and in the typical Von Neumann architecture of a computer, we need to bring programs and data into memory for them to be eligible to execute on a CPU.  The way the OS allows this to happen is through demand paging.  When we need a file from disk, we read it from disk, store it in a physical memory location, expose the process to a logical location of that physical memory and allow the process to access that memory.  Because reading from disk is orders of magnitude slower than reading from RAM, and processes need to reuse certain pieces of memory, it makes no sense to relinquish that memory after use. [7]
 
@@ -118,8 +114,13 @@ In database management systems, this becomes even more important due to the shee
 
 Bitcask chose not to implement a buffer pool manager and their reasoning centered around the fact they were already getting so much for free from the operating system.[4]  It definitely makes more sense for relational database management systems to pay the costs of implementing their own because of the abundance of join and range queries that are not possible in a system like Bitcask but common in a relational DB. 
 
-### Buffer Pool Implementation
+## Buffer Pool Implementation
 
+![alt text][buffer]
+
+[buffer]: https://github.com/arch-r45/unearthDB/blob/main/docs/pictures/bufferpool.png
+
+> My buffer pool in the midst of executing a read_from_buffer_pool() call. 
 
 There is a boot up call to the buffer pool manager that initializes the buffer_pool struct which is the main struct for the buffer pool.  The main variables here are the pointer to block which points to the first memory address of the block of the big block of memory that is going to be added when we call 
 
@@ -169,6 +170,19 @@ Because we only have one writer thread to take advantage of sequential access be
 How the data is laid out on disk is shown above.  We use two 32 bit integers to determine the size of the key and values respectively.  We then write the keys and values out in binary.  The reason for having the key and value sizing is to avoid the need for escape characters (‘\0’) or delimiters and to be able to quickly load the key and value into character arrays upon retrieval.  The authors of Bitcask choose to exclude any extra compression techniques and cited that compression benefits are normally very application specific.  [4]  
 
 We make a call to write_to_buffer_pool() to return the buffer location and also check to make sure the number of new bytes being written to our current buffer does not exceed the capacity.  If it does exceed, the current page we are on becomes immutable, and we switch pages.  Checking minimizes the amount of internal fragmentation within our log files while still ensuring each record doesn’t occupy multiple log files.  Certain databases allow records to span multiple pages but generally these are reserved for multimedia databases that contain records like images and videos that contain more bytes than a single page size.  [3] We also check if the current number of files exceeds a certain amount, which would invoke our compaction process which we describe later on. 
+
+Once we then perform the write() system call, we add the string key as our key to our current files hashmap and set the value to an integer pointer pointing to an array of size 2 * sizeof(int).  This integer array contains the offset within the file where the record is located and the size of the file in bytes.  This hashmap *map* resides in a larger hashmap *master_map* which maps the file number to the memory location of the individual hashmap.  The individual hashmaps allows us to keep a smaller amount of keys in memory than the amount that resides on disk because hashmaps overwrite non unique keys.  It also allows us to easily jump to the location within each buffer in constant time and grab the exact size of the record. 
+
+![alt text][structure]
+
+[structure]: https://github.com/arch-r45/unearthDB/blob/main/docs/pictures/hash_map_structure.png
+
+> Hash Map In Memory Indexing Structure
+
+
+## Get API
+
+
 
 
 
