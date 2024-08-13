@@ -7,9 +7,11 @@
 [Overview](#overview)  
 [Introduction](#introduction)  
 [System Bootup](#System-Bootup)  
-[Buffer Pool Manager](#Buffer-Pool-Manager)  
+[Buffer Pool Manager Theory](#Buffer-Pool-Manager-theory)  
 [Buffer Pool Implementation](#buffer-pool-implementation)   
 [Set API](#set-api) 
+[Get API](#get-api)  
+
 
 ## Overview
 
@@ -94,7 +96,7 @@ Some implementations use popular libraries for encoding binary objects into byte
 
 For me, constructing the hashmaps consisted of simply reading all the files into memory and going through and constructing each hashmap in a linear scan fashion.  This can be slow and make boot-ups very time intensive if the number of files is very large.  Bitcask solves this problem by constructing a hint file during compaction of existing keys, which can greatly speed up boot up time.  If the hint file for a particular file exists, the database scans that one instead, which just contains the keys and the offsets, and the full metadata is in the normal file.  This is something that I neglected but the implementation would not be too hard to add at a later point. 
 
-## Buffer Pool Manager
+## Buffer Pool Manager Theory
  
 
 Virtual memory in operating systems is the idea that we need to be able to execute a process that is larger than available memory.  One reason is because your computer usually has numerous processes running simultaneously, so each process can’t have access to all available memory on a system. Another reason we want to do this is because we have way less RAM than disk space, and in the typical Von Neumann architecture of a computer, we need to bring programs and data into memory for them to be eligible to execute on a CPU.  The way the OS allows this to happen is through demand paging.  When we need a file from disk, we read it from disk, store it in a physical memory location, expose the process to a logical location of that physical memory and allow the process to access that memory.  Because reading from disk is orders of magnitude slower than reading from RAM, and processes need to reuse certain pieces of memory, it makes no sense to relinquish that memory after use. [7]
@@ -179,6 +181,18 @@ Once we then perform the write() system call, we add the string key as our key t
 
 
 ## Get API
+
+Our Get API takes as input a pointer to the address space of some character *key* and returns a character pointer to the value of that key.  On success, it returns the pointer the value of the key inserted, it returns a pointer to a char array "Key Does Not Exist" if not.  
+
+```c
+char *get(char *key)
+```
+
+When we enter the get call, we immediately need to place a mutex lock to ensure our compaction thread does not delete the file and subsequent buffer block from disk before we have returned our value.  Failure to do this will result in segmentation faults.  
+
+Then we need to loop through our directory buffer in reverse.  The reason for performing this loop in reverse is that our most up to date value of a given key comes from the most recent insertion.  If you think of our buffer pool like a queue, we add new files to the end and we pop files from the front.  The main idea is we are going from back to front, or from newest to oldest, whatever the best way to describe it is.  We go through our records in our directory buffer and check to see if the key is in each record's hashmap.  This is very efficient, because for each hashmap we check we have average of O(1) constant time lookups on each key, so our time complexity ends up being 0(N) * O(1) or just O(N) with N being the number of records in our directory buffer.  However, the compaction algorithm ensures that N does not grow without bound, and everytime our file number gets above a certain threshold, it compacts the data together,  reducing the size of our directory buffer to some constant.  This ends up making our time complexity closer to O(1) constant time depending on what kind of data we are dealing with.  Also, because of compaction, we are constantly shifting our unique keys to the end of our directory buffer, further reducing our average time lookup of most keys.  
+
+If we finish our loop, and don’t find any key, we know the value does not exist so we can return.  If not, we grab our buffer memory location from our buffer pool manager, index into our array in our hashmap to grab our offset and byte size and perform our lookup.  We have to help out our buffer pool before we return our value by releasing the pin the buffer pool set.  We can do this by flipping the bit.  Then we can release our mutex lock and return the value.  
 
 
 
