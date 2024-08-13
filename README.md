@@ -4,6 +4,9 @@
 
 [UnearthDB]: https://github.com/arch-r45/unearthDB/blob/main/docs/pictures/UnearthDB.png
 
+
+## Table of Contents
+
 [Overview](#overview)  
 [Introduction](#introduction)  
 [System Bootup](#System-Bootup)  
@@ -11,6 +14,7 @@
 [Buffer Pool Implementation](#buffer-pool-implementation)   
 [Set API](#set-api) 
 [Get API](#get-api)  
+[Compation](#compaction)  
 
 
 ## Overview
@@ -25,7 +29,7 @@ In this repository, I implement a persistent, multithreaded key value log store 
 
 ## Introduction
 
-Most Database Management Systems follow a relational model, where each file on disk is an individual table of the database, and these files are brought into memory in 4 KB(sometimes 8KB) pages depending on what record is trying to be read.  The relational model acts as a general purpose data model which is part of why it's been a mainstay for over 50 years and will continue to be for the foreseeable future. [1]  Popular implementations consist of Oracle DB, MYSQL, PostgresQL and SQlite3.   RDBMS’s ensure ACID properties, allow for widespread querying of data with range queries and joins, and generally have scalable performance for most workloads.[2] [3]   This reliability and versatility of relational databases indicate why they far outpace other types of databases in terms of frequency of use among developers.  [10].  
+Most Database Management Systems follow a relational model, where each file on disk is an individual table of the database, and these files are brought into memory in 4 KB(sometimes 8KB) pages depending on what record is being read.  The relational model acts as a general purpose data model which is part of why it's been a mainstay for over 50 years and will continue to be for the foreseeable future. [1]  Popular implementations consist of Oracle DB, MYSQL, PostgresQL and SQlite3.   RDBMS’s ensure ACID properties, allow for widespread querying of data with range queries and joins, and generally have scalable performance for most workloads.[2] [3]   This reliability and versatility of relational databases indicate why they far outpace other types of databases in terms of frequency of use among developers.  [10].  
 
 However, specific applications are willing to make tradeoffs to forgo some of the benefits of relational databases in favor of different optimizations.  Which trade offs they make comes down to what loads the individual applications are trying to optimize for.  There are certain applications that want to prioritize fast reading of dating and certain applications that want to favor fast writing of data.  The general rule of thumb, is that RDBMS’s are the optimal option for read-heavy workloads but LSM Trees(NOSQL model) are optimal for write-heavy workloads. [2]  Designing an index structure that optimizes for one of the two access methods(reads or writes), enforces a hard lower bound on the other access method [9], therefore strong-arming the application developer to make a choice in which access method to optimize for.   
 
@@ -194,6 +198,16 @@ Then we need to loop through our directory buffer in reverse.  The reason for pe
 
 If we finish our loop, and don’t find any key, we know the value does not exist so we can return.  If not, we grab our buffer memory location from our buffer pool manager, index into our array in our hashmap to grab our offset and byte size and perform our lookup.  We have to help out our buffer pool before we return our value by releasing the pin the buffer pool set.  We can do this by flipping the bit.  Then we can release our mutex lock and return the value.  
 
+## Compaction
+
+Our compaction call only gets invoked when our file number goes above a certain threshold.  In our call, we initialize a temporary hashmap that is just string keys and string values.  We loop through our directory buffer starting from the front and add the keys and values to our hashmap, overwriting values that contain the same keys.  In C, this was trickier than other languages to implement as we had to keep track of where in the offset we were and ensure we did not go out of bounds.  The key_size and value_size helped significantly to ensure we were staying in bounds.  
+
+After populating our temp_map, each key and value that occupy our hashmap is up to date and we can then loop through our temp_map and set all these values.  The one bug that could leak in is once we are done looping through all our files, we cannot add any more keys.  It takes some time to then loop through our hashmap and re-set() all these keys on our normal thread.  During that time, if we encounter new set() calls, we cannot add these to our hashmap because our hashmap needs to be closed off from accepting new values to ensure we eventually can exit out of our compaction() call.  So in order to ensure the most up to date value is in being set, we would need to hold a long mutex lock during this loop.  This obviously has serious performance ramifications and Bitcask was not specific with how they handled this in their paper. [4]  
+
+After we are done with setting all the new values, we need to ensure we hold a mutex lock over our directory buffer while we go and delete our files that we no longer need and change our important current_fd_buffer_index variable.  We cannot have another thread entering into their critical section on a read and trying to index into a variable that then gets deleted by our compaction call.   We need to replace our directory buffer in global memory with our new buffer and then we can release the mutex lock.  
+
+
+Lastly, the file threshold number was never specified in bitcask’s papers, and this could be something that could be researched further.  It probably is very application dependent, but there should be an optimal threshold number that can reach some equilibrium point between amount of data on disk, and speed of executing reads and writes.  
 
 
 
