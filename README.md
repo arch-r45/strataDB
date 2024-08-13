@@ -12,7 +12,7 @@
 [System Bootup](#System-Bootup)  
 [Buffer Pool Manager Theory](#Buffer-Pool-Manager-theory)  
 [Buffer Pool Implementation](#buffer-pool-implementation)   
-[Set API](#set-api) 
+[Set API](#set-api)  
 [Get API](#get-api)  
 [Compation](#compaction)  
 
