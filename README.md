@@ -20,6 +20,8 @@ In this repository, I implement a persistent, multithreaded key value log store 
 
 [rantests]: https://github.com/arch-r45/unearthDB/blob/main/docs/pictures/write_test.png
 
+> Testing Results for 15,000 Writes
+
 ## Introduction
 
 Most Database Management Systems follow a relational model, where each file on disk is an individual table of the database, and these files are brought into memory in 4 KB(sometimes 8KB) pages depending on what record is trying to be read.  The relational model acts as a general purpose data model which is part of why it's been a mainstay for over 50 years and will continue to be for the foreseeable future. [1]  Popular implementations consist of Oracle DB, MYSQL, PostgresQL and SQlite3.   RDBMS’s ensure ACID properties, allow for widespread querying of data with range queries and joins, and generally have scalable performance for most workloads.[2] [3]   This reliability and versatility of relational databases indicate why they far outpace other types of databases in terms of frequency of use among developers.  [10].  
@@ -36,7 +38,7 @@ This takes advantage of sequential I/O where the disk arm seeks are kept to a mi
 
 [disk]: https://github.com/arch-r45/unearthDB/blob/main/docs/pictures/disk_diagram.png
 
-> *Diagram of Magnetic Disk (Source: Operating System Concepts-Tenth Edition)*
+> Diagram of Magnetic Disk (Source: *Database System Concepts: Seventh Edition* [3])
 
 Also, by never rewriting existing pages, write amplification is reduced.  Write amplification never used to be of much concern for disk oriented storage, but the rise of fast SSD storage has made avoiding write amplification important.  This is because SSDs can only overwrite the same blocks a limited number of times before wearing out[2] in comparison to traditional disks which usually have a mean time to failure of over 50 years. [3]  There are obviously some disadvantages and tradeoffs you are making when you use this structure and like everything in computer science, there is no free lunch.  Because you are never updating old segments, you end up having a large amount of duplicate records in your file, and LSM trees can run a compaction algorithm in the background, but this can sometimes interfere with performance or in some cases lag behind and never catch up.  Also transactional guarantees are more difficult to ensure in LSM Trees due to the data being written possibly in multiple locations which leads to applications choosing B tree Databases in applications where transactional guarantees matter, like banking.  Popular implementations of LSM trees are LevelDB from Google and a fork of LevelDB [11], RocksDB, from Facebook [12].
 
@@ -49,11 +51,15 @@ This leads us to Bitcask, which pulls elements from both in memory databases and
 
 [youtubeviews]: https://github.com/arch-r45/unearthDB/blob/main/docs/pictures/youtubeviews.png
 
+> View Count of a Popular Youtube Video (Source: *youtube.com*)
+
 The underlying index structure for Bitcask is a hashmap and the storage structure is log files like LSM trees.  Each log file has its own hashmap structure in memory.  Each time you need to make a read you simply check if the key is in the most recent log files hash map, and the value to that key is the byte offset and size of record in that file .  If the key doesn't exist in the most recent log file, you check the next hashmap and so on.  When you need to write a key, you simply append the record to the most recent log file and you place the key and byte offset in the associated hashmap.  Like LSM trees, there are no updates to records and once a log file is closed, it's considered immutable.  Because we could run out of disk space over time, a compaction process can run in a separate thread that can be used to discard old files and write the most recent updates to the current log file.  
 
 ![alt text][compaction-diagram]
 
 [compaction-diagram]: https://github.com/arch-r45/unearthDB/blob/main/docs/pictures/compaction-diagram.png
+
+> View Count of a Popular Youtube Video (Source: *youtube.com*)
 
 I implement my own version of Bitcask by following most of the design choices of the original authors and I extend their implementation with my own choices and optimizations.  Some differences arise due to me choosing to use C in order to have full control over the memory management of the process versus the Bitcask authors using the language, Erlang.  The biggest difference in architecture arose from me choosing to implement my own buffer pool manager and not rely on the operating system to manage the buffer cache.  This has been a highly contested debate within the database architecture community with the majority of experts and implementations siding with not relying on the OS to perform buffering. [5]  When people are designing their own database implementations it can be enticing to use the system call MMAP() which memory maps files to a logical address space.  You are getting the buffer management for free which can save a lot of development time because getting the buffer pool manager to work properly can be tricky.  Also kernel developers have spent a long time perfecting the OS’s buffer cache so why make it from scratch?  The argument against MMAP() is that the operating system has no idea what is happening in your database so therefore can't make choices as intelligently as the database developer over which pages to keep in memory, which to bring into memory and which to evict.  I do not choose to use MMAP() in my database and choose to use Direct_IO on Linux.  Direct_IO bypasses the operating systems buffer cache when the original call to open() is made and allows the user space to handle buffering. [6] Mac OS does not allow for Direct_IO and forces you to give hints, but the hints may or may not be received.  This leads to the double caching problem that systems like PostgresQL run into.  At system boot up, PostgresQL can only allocate half of the memory compared to other systems like MYSQL and RocksDB because of this double caching problem.  Double Caching means that the systems themselves are managing their own buffer pool but they are reading files through the operating system which means these files are being loaded into the operating systems buffer cache as well.  This is redundant because we do not need to buffer data in two separate places.  RocksDB was a fork of LevelDB and the first change they made was to get rid of MMAP and implement their own buffer pool manager.   
 
@@ -67,7 +73,7 @@ open(path, O_RDWR|O_DIRECT, 0666);
 
 [open-call]: https://github.com/arch-r45/unearthDB/blob/main/docs/pictures/opencall.png
 
-
+> Compaction Algorithm on Sorted Keys (Source: *Designing Data-Intensive Applications*[2])
 
 ## System Bootup
 
@@ -81,6 +87,12 @@ Some implementations use popular libraries for encoding binary objects into byte
 
 [dir_buf]: https://github.com/arch-r45/unearthDB/blob/main/docs/pictures/dir_buf.png
 
+> My directory buffer 
+>
+>```
+c int directory_buffer[1024]
+>```
+
 For me, constructing the hashmaps consisted of simply reading all the files into memory and going through and constructing each hashmap in a linear scan fashion.  This can be slow and make boot-ups very time intensive if the number of files is very large.  Bitcask solves this problem by constructing a hint file during compaction of existing keys, which can greatly speed up boot up time.  If the hint file for a particular file exists, the database scans that one instead, which just contains the keys and the offsets, and the full metadata is in the normal file.  This is something that I neglected but the implementation would not be too hard to add at a later point. 
 
 ## Buffer Pool Manager
@@ -89,12 +101,16 @@ For me, constructing the hashmaps consisted of simply reading all the files into
 
 [buffer]: https://github.com/arch-r45/unearthDB/blob/main/docs/pictures/bufferpool.png
 
+> My buffer pool in the midst of executing a read_from_buffer_pool() call.  
+
 Virtual memory in operating systems is the idea that we need to be able to execute a process that is larger than available memory.  One reason is because your computer usually has numerous processes running simultaneously, so each process can’t have access to all available memory on a system. Another reason we want to do this is because we have way less RAM than disk space, and in the typical Von Neumann architecture of a computer, we need to bring programs and data into memory for them to be eligible to execute on a CPU.  The way the OS allows this to happen is through demand paging.  When we need a file from disk, we read it from disk, store it in a physical memory location, expose the process to a logical location of that physical memory and allow the process to access that memory.  Because reading from disk is orders of magnitude slower than reading from RAM, and processes need to reuse certain pieces of memory, it makes no sense to relinquish that memory after use. [7]
 
 
 ![alt text][memory]
 
 [memory]: https://github.com/arch-r45/unearthDB/blob/main/docs/pictures/memory.png
+
+> Storage Device Hierarchy of a Modern Day Computer
 
 Therefore the operating system's job is to try to give the illusion to the running process that every piece of data they access is in memory even if the amount of data is greater than the total available memory on the system.  The way they do this is through a buffer cache.  When a file is read by a process, first the OS checks if the file is in the buffer cache, if it is, it returns a pointer to that memory location.  If it's not, it checks a free frame list to see if there are any free frames available in the buffer cache.  If there are free frames, it then makes the call to disk and loads the file contents in the memory location that was free, then returns a pointer to that memory location.  If there are no free frames, it then needs to evict data that is not being used from the buffer cache, to free up space for the new file. [7] There have been many papers and different attempts on the best eviction protocols, but Least Recently Used(LRU) eviction policies are what most operating systems use.  The idea is that a doubly linked list is used with a *sentinel* (dummy) variable at the head and a *sentinel* variable at the tail to mark the insertion and deletion locations.  Everytime something is accessed from the buffer pool it is added to the front of the link list.  This is done even if the page is located in the middle of the linked list or its being read in for the first time.  This can be done in O(1) constant time [8] even if the value is already in the middle of the linked list because all you have to do is connect the previous nodes pointer to the next nodes pointer and vice versa.  When you need to evict, you simply connect the tail.prev pointer to current_node.prev.next pointer and vice versa. 
 
@@ -129,6 +145,8 @@ The biggest problem of pinning is the risk of thrashing.  Thrashing is another c
 
 [thrashing]: https://github.com/arch-r45/unearthDB/blob/main/docs/pictures/thrashing.png
 
+> Thrashing Depiction (Source: *Operating System Concepts:Tenth Edition* [7])
+
 In database systems we are not immune to performance issues in regard to thrashing because we use pins.  Some operating systems use different but similar types of pins as well and they run into performance degradation because the new processes end up in queues waiting to be serviced longer than they spend executing, destroying performance.[7]  When we implement concurrent reads, we need to ensure the tradeoffs between parallelism and cache misses are balanced to avoid performance decline.  
 
 
@@ -146,6 +164,7 @@ Because we only have one writer thread to take advantage of sequential access be
 
 [setkey]: https://github.com/arch-r45/unearthDB/blob/main/docs/pictures/set_key.png
 
+> Memory and Disk Layout of an Individual Record
 
 How the data is laid out on disk is shown above.  We use two 32 bit integers to determine the size of the key and values respectively.  We then write the keys and values out in binary.  The reason for having the key and value sizing is to avoid the need for escape characters (‘\0’) or delimiters and to be able to quickly load the key and value into character arrays upon retrieval.  The authors of Bitcask choose to exclude any extra compression techniques and cited that compression benefits are normally very application specific.  [4]  
 
