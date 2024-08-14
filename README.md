@@ -10,11 +10,11 @@
 [Overview](#overview)  
 [Introduction](#introduction)  
 [System Bootup](#System-Bootup)  
-[Buffer Pool Manager Theory](#Buffer-Pool-Manager-theory)  
+[Buffer Pool Theory](#Buffer-Pool-theory)  
 [Buffer Pool Implementation](#buffer-pool-implementation)   
 [Set API](#set-api)  
 [Get API](#get-api)  
-[Compation](#compaction)  
+[Compaction](#compaction)  
 
 
 ## Overview
@@ -100,7 +100,7 @@ Some implementations use popular libraries for encoding binary objects into byte
 
 For me, constructing the hashmaps consisted of simply reading all the files into memory and going through and constructing each hashmap in a linear scan fashion.  This can be slow and make boot-ups very time intensive if the number of files is very large.  Bitcask solves this problem by constructing a hint file during compaction of existing keys, which can greatly speed up boot up time.  If the hint file for a particular file exists, the database scans that one instead, which just contains the keys and the offsets, and the full metadata is in the normal file.  This is something that I neglected but the implementation would not be too hard to add at a later point. 
 
-## Buffer Pool Manager Theory
+## Buffer Pool Theory
  
 
 Virtual memory in operating systems is the idea that we need to be able to execute a process that is larger than available memory.  One reason is because your computer usually has numerous processes running simultaneously, so each process can’t have access to all available memory on a system. Another reason we want to do this is because we have way less RAM than disk space, and in the typical Von Neumann architecture of a computer, we need to bring programs and data into memory for them to be eligible to execute on a CPU.  The way the OS allows this to happen is through demand paging.  When we need a file from disk, we read it from disk, store it in a physical memory location, expose the process to a logical location of that physical memory and allow the process to access that memory.  Because reading from disk is orders of magnitude slower than reading from RAM, and processes need to reuse certain pieces of memory, it makes no sense to relinquish that memory after use. [7]
@@ -207,9 +207,10 @@ After populating our temp_map, each key and value that occupy our hashmap is up 
 After we are done with setting all the new values, we need to ensure we hold a mutex lock over our directory buffer while we go and delete our files that we no longer need and change our important current_fd_buffer_index variable.  We cannot have another thread entering into their critical section on a read and trying to index into a variable that then gets deleted by our compaction call.   We need to replace our directory buffer in global memory with our new buffer and then we can release the mutex lock.  
 
 
-Lastly, the file threshold number was never specified in bitcask’s papers, and this could be something that could be researched further.  It probably is very application dependent, but there should be an optimal threshold number that can reach some equilibrium point between amount of data on disk, and speed of executing reads and writes.  
+Lastly, the file threshold number was never specified in Bitcask’s papers, and this could be something that could be researched further.  It probably is very application dependent, but there should be an optimal threshold number that can reach some equilibrium point between amount of data on disk, and speed of executing reads and writes.  
 
 
+The compaction technique here saves a lot of storage space.  Obviously if the application developer uses it incorrectly and has a large amount of unique keys, compaction will be less effective.  But this is very similar in Relational Database Management systems and building query optimizers.  In the end, the best relational query optimization plan can be rendered obsolete by incorrect use by the developer.  So we are making an assumption that the developer uses our tool properly when we assess the storage use benchmarks.   If we follow the constraint that all keys need to be able to fit in available memory, then we are assuming this database is used by applications with a small number of keys relative to the total number of individual records.  The compaction technique therefore could be estimated at saving 99 percent of the total storage space because we assume same-key writes are prominent.  In assessing the space complexity, it should always be linear in respect to the number of unique keys we have, because compaction clears out any duplicates.  Again, part of the space complexity relies on what we set the file threshold number to, but assuming we pick an optimal threshold, the space complexity should still be linear.  
 
 
 
