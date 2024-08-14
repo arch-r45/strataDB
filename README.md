@@ -15,11 +15,13 @@
 [Set API](#set-api)  
 [Get API](#get-api)  
 [Compaction](#compaction)  
+[Concurrency Control and Non-Determinsm](#Concurrency-Control-and-Non-Determinsm)  
+
 
 
 ## Overview
 
-In this repository, I implement a persistent, multithreaded key value log store based on bitcask.  I implement this in C using the Linux Operating system and package it into a Docker container.  I use Linux DIRECT_IO to bypass the operating systems buffer cache and implement my own buffer pool manager that handles page replacement intelligently in user space.  This also avoids double caching that hinders systems like PostgresQL who choose to implement their own buffer pool manager but not use DIRECT_IO.  My implementation is able to perform 15,000 persistent writes per second which is a big improvement on similar hardware to the original Bitcask paper of 6000 writes per second.  I also implement a thread safe, compaction algorithm that runs in a background thread.  The compaction algorithm saves 99 GB of space for every 100GB written by eliminating the vast majority of redundant data.  The system also handles race conditions eloquently and avoids deadlock entirely by never violating the hold and wait principle.   
+In this repository, I implement a persistent, multithreaded key value log store based on bitcask.  I implement this in C using the Linux Operating system and package it into a Docker container.  I use Linux DIRECT_IO to bypass the operating systems buffer cache and implement my own buffer pool manager that handles page replacement intelligently in user space.  This also avoids double caching that hinders systems like PostgreSQL who choose to implement their own buffer pool manager but not use DIRECT_IO.  My implementation is able to perform 15,000 persistent writes per second which is a big improvement on similar hardware to the original Bitcask paper of 6000 writes per second.  I also implement a thread safe, compaction algorithm that runs in a background thread.  The compaction algorithm saves 99 GB of space for every 100GB written by eliminating the vast majority of redundant data.  The system also handles race conditions eloquently and avoids deadlock entirely by never violating the hold and wait principle.   
 
 ![alt text][rantests]
 
@@ -29,7 +31,7 @@ In this repository, I implement a persistent, multithreaded key value log store 
 
 ## Introduction
 
-Most Database Management Systems follow a relational model, where each file on disk is an individual table of the database, and these files are brought into memory in 4 KB(sometimes 8KB) pages depending on what record is being read.  The relational model acts as a general purpose data model which is part of why it's been a mainstay for over 50 years and will continue to be for the foreseeable future. [1]  Popular implementations consist of Oracle DB, MYSQL, PostgresQL and SQlite3.   RDBMS’s ensure ACID properties, allow for widespread querying of data with range queries and joins, and generally have scalable performance for most workloads.[2] [3]   This reliability and versatility of relational databases indicate why they far outpace other types of databases in terms of frequency of use among developers.  [10].  
+Most Database Management Systems follow a relational model, where each file on disk is an individual table of the database, and these files are brought into memory in 4 KB(sometimes 8KB) pages depending on what record is being read.  The relational model acts as a general purpose data model which is part of why it's been a mainstay for over 50 years and will continue to be for the foreseeable future. [1]  Popular implementations consist of Oracle DB, MYSQL, PostgreSQL and SQlite3.   RDBMS’s ensure ACID properties, allow for widespread querying of data with range queries and joins, and generally have scalable performance for most workloads.[2] [3]   This reliability and versatility of relational databases indicate why they far outpace other types of databases in terms of frequency of use among developers.  [10].  
 
 However, specific applications are willing to make tradeoffs to forgo some of the benefits of relational databases in favor of different optimizations.  Which trade offs they make comes down to what loads the individual applications are trying to optimize for.  There are certain applications that want to prioritize fast reading of dating and certain applications that want to favor fast writing of data.  The general rule of thumb, is that RDBMS’s are the optimal option for read-heavy workloads but LSM Trees(NOSQL model) are optimal for write-heavy workloads. [2]  Designing an index structure that optimizes for one of the two access methods(reads or writes), enforces a hard lower bound on the other access method [9], therefore strong-arming the application developer to make a choice in which access method to optimize for.   
 
@@ -214,6 +216,20 @@ The compaction technique here saves a lot of storage space.  Obviously if the ap
 
 
 
+## Concurrency Control and Non-Determinsm 
+
+Computers are by law deterministic[15] meaning that each time we run a program with a set of inputs we expect it to produce the same exact output every time.  This phenomenon holds especially true for anyone who has ever written a simple serial program.  The reason is because computers obey laws of nature, which are themselves deterministic.  Anytime we encounter a phenomenon in nature that appears to give random outcomes, the variables are either too unknown to us, or too intractable to take account of.  [16]  Appearing as random does not invoke non-determinism in this sense.  The impossibility of writing a non-pseudo random number generator program illustrates that computers must follow deterministic instructions.  If one could write a true random number generator that actually produces a different answer with the exact same inputs, then determinism would be disproven not only in computers, but in physics as well.  Yet, we are left with computer programs that can only simulate the *effect* of randomness, including, but not limited to, some extremely clever techniques that take advantage of hardware decay and clocks.  These programs are not non-deterministic, as if someone was able to input the exact variables that the program is using, it will always return the same result.  
+
+However, when we introduce memory-sharing threads with concurrency,  we can *appear* to get a completely different phenomenon, as we can run the same program multiple times with the same input and receive different answers.  
+
+
+![alt text][concurrency]
+
+[concurrency]: https://github.com/arch-r45/unearthDB/blob/main/docs/pictures/concurrency.png
+
+> Example of inconsistent results of the same exact program
+
+
 
 
 [1]: https://db.cs.cmu.edu/papers/2024/whatgoesaround-sigmodrec2024.pdf
@@ -233,3 +249,7 @@ The compaction technique here saves a lot of storage space.  Obviously if the ap
 [13]: https://www.hkex.com.hk/Market-Data/Statistics/Consolidated-Reports/Securities-Statistics-Archive/Trading_Value_Volume_And_Number_Of_Deals?sc_lang=en#select1=0&selection=2020-2024-(up-to-the-end-of-previous-month)
 
 [14]: https://www.linuxjournal.com/article/7451
+
+[15]: https://www2.eecs.berkeley.edu/Pubs/TechRpts/2006/EECS-2006-1.pdf
+
+[16]: https://www.thebeginningofinfinity.com/
