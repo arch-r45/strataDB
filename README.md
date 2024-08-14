@@ -16,7 +16,7 @@
 [Get API](#get-api)  
 [Compaction](#compaction)  
 [Concurrency Control and Non-Determinsm](#Concurrency-Control-and-Non-Determinsm) 
-[Future Improvements and Summary][#Future-Improvements-and-Summary]  
+[Future Improvements and Summary](#Future-Improvements-and-Summary)   
 
 
 
