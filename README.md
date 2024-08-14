@@ -238,6 +238,35 @@ I was running into problems trying to figure out why I was getting inconsistent 
 In order to solve this problem, I implemented mutex locks which prevent other threads from manipulating variables when locks are set.  This is expensive as it makes other threads stall which effectively reduces the degree of multiprogramming as one less thread can make progress.  However, locks are essential for guaranteeing correctness.  Mutex locks can lead to problems like deadlock, where multiple threads are waiting for a resource to consume that only the other thread can release.  I never ran into deadlock problems with my application.  This is because deadlock can never occur if the hold and wait condition never happens.  I made sure to not allow a thread that was trying to request a resource, to hold onto another resource.  
 
 
+## Future Improvements and Summary
+
+I originally set out to implement the unique functionality of Bitcask with the Get() and Set() and compaction() calls.  I also added the buffer pool manager that Bitcask neglected to add but many other data systems employ and used all my own data structure implementations.  These are by no means bug free and optimal, and I will want to continue to make changes to some of my existing functionality to make it better.  I also set out to replicate Bitcask’s performance metrics, but I have not rigidly benchmarked everything.  I was able to achieve 15,000 writes in just over a second but the testing could have been performed better and definitely had some limitations.  So my existing functionality could be improved, but at the same time I am doing this to learn, first and foremost,  and there are some other areas from other papers and textbooks that pique my interest and I want to look to add, even if this implementation isn’t perfect.
+
+There are other areas that are not unique to Bitcask, but other systems have unique ways of implementing them.  I wish to explore these other areas in the future and connect those components to this implementation.  One database I am particularly interested in reimplementing parts of is Yellowbrick. [17]  They do really interesting engineering work by bypassing different areas of the operating system, and reimplementing their own mini unikernel.  I outline some of the cool engineering work they do below as well as some other areas that I want to explore on top of this project.
+
+* tcp/ip networking
+  * Aiming to introduce my own TCP/IP network protocol for communication with my process.  Yellowbrick uses kernel bypass here and grabs raw packets from the hardware and reimplements their own networking stack which would be cool to explore
+
+* Parser-> Lexical Analyzer (Mini Compiler)
+  * Want to implement the parser and LA from scratch in c, this would revolve around simulating an NFA inside a DFA and writing my own mini compiler(without anything past intermediate code gen)
+
+* LSM Tree Extension(Red Black Tree Index)
+  * Fork this in to an LSM Tree implementation with a red black tree index structure 
+    * Then extend the compiler to write a query optimizer that can take existing queries and execute the one with the lowest costs.  LSM Trees can perform range queries so this will give me more to optimize
+
+* Make it Distributed
+  * I do not mean connect this to AWS, but make it evenly distributed across different running processes and ports to get a better working understanding on Distributed Systems
+
+* Improve my hashmap implementations
+  * I implemented all my hash maps in c, and because the hash maps were never getting seriously large, optimizing them did not matter.  With query optimization, it becomes vital to have ultra high performing hash maps so I want to explore optimizing them.  
+
+* Memory Allocator
+  * Yellowbrick does not call malloc() after they boot up, all memory is allocated in user space from the already allocated chunk of memory.  This is what the operating system performs for the user and can offer some great performance measurements according to Yellowbrick[17]
+
+
+
+
+
 
 [1]: https://db.cs.cmu.edu/papers/2024/whatgoesaround-sigmodrec2024.pdf
 [2]: https://dataintensive.net/
@@ -260,3 +289,5 @@ In order to solve this problem, I implemented mutex locks which prevent other th
 [15]: https://www2.eecs.berkeley.edu/Pubs/TechRpts/2006/EECS-2006-1.pdf
 
 [16]: https://www.thebeginningofinfinity.com/
+
+[17]: https://15721.courses.cs.cmu.edu/spring2024/papers/21-yellowbrick/p2-cusack.pdf
