@@ -264,6 +264,9 @@ There are other areas that are not unique to Bitcask, but other systems have uni
 * Memory Allocator
   * Yellowbrick does not call malloc() after they boot up, all memory is allocated in user space from the already allocated chunk of memory.  This is what the operating system performs for the user and can offer some great performance measurements according to Yellowbrick[17]
 
+* Add FPGA/Hardware Accelerators
+  * An interesting paper uses FPGA's to speed up the compaction of LSM Trees [18], Writing a hardware driver that connected to the database would be something I am dying to explore.   
+
 
 
 
@@ -292,3 +295,5 @@ There are other areas that are not unique to Bitcask, but other systems have uni
 [16]: https://www.thebeginningofinfinity.com/
 
 [17]: https://15721.courses.cs.cmu.edu/spring2024/papers/21-yellowbrick/p2-cusack.pdf
+
+[18]: https://conferences.computer.org/icde/2020/pdfs/ICDE2020-5acyuqhpJ6L9P042wmjY1p/290300b261/290300b261.pdf
