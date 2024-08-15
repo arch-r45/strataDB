@@ -41,9 +41,9 @@ An example of a read heavy workload would be a social media site like Twitter wh
 Whether a database optimizes for reads or writes comes down to the choice of index structure.  Both Relational Databases and LSM Trees rely on sorted tree structures for their indexes.[2] [3]  In a typical SQL relational database, a B tree data structure is used to find the specific page of the record, bring that page into memory, perform the insertion, then rewrite the whole page back to disk.  A B tree uses the sorted property to maintain that lookups are at worst O(LogH) time complexity [8], where H is the height of the tree, which is very efficient for random reads of records.  However, for writes it seems wasteful to have to keep rewriting full 4KB pages back to disk for just performing one insertion.  Also random access on disk is around 100 times slower than sequential access. [3]  
 
 
-![alt text][disk]
+![alt text][btree]
 
-[disk]: https://github.com/arch-r45/unearthDB/blob/main/docs/pictures/B+tree.png
+[btree]: https://github.com/arch-r45/unearthDB/blob/main/docs/pictures/B+tree.png
 
 > B+ Tree Depiction (Source: *Database System Concepts: Seventh Edition* [3])
 
