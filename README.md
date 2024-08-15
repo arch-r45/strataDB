@@ -270,12 +270,12 @@ There are numerous other areas in Database Development that are not unique to Bi
 
 * LSM Tree Extension(Red Black Tree Index)
   * Fork this in to an LSM Tree implementation with a red black tree index structure 
-    * Then extend the compiler to write a query optimizer that can take existing queries and execute the one with the lowest costs.  LSM Trees can perform range queries so this will give me more to optimize
+    * Then extend the compiler to write a query optimizer that can take existing queries and execute the query with the lowest cost.  LSM Trees can perform range queries so this will give me more to optimize
 
 * Add Distributed Functionality
   * I do not mean connect this to AWS, but make it evenly distributed across different running processes and ports to get a better working understanding on Distributed Systems.  Partitioning data across multiple nodes in a network is mandatory in today's world of cloud computing.  
 
-* Improve my hashmap implementations
+* Improve the hashmap implementatons
   * I implemented all my hash maps in c, and because the hash maps were never getting seriously large, optimizing them did not matter.  With query optimization, it becomes vital to have ultra high performing hash maps so I want to explore optimizing them.  
 
 * Memory Allocator
@@ -285,20 +285,20 @@ There are numerous other areas in Database Development that are not unique to Bi
   * An interesting paper uses FPGA's to speed up the compaction for LSM Trees [18], Writing a hardware driver that connected to the database would be something I am dying to explore.   
 
 * Build a Geo-Spatial Indexing technique
-  * Uber engineering has an interesting paper on their h3 structure they open sourced for more efficent geo-spatial indexing.  Would be cool to recreate.  
+  * Uber engineering has an interesting paper on their h3 structure that they open sourced for more efficent geo-spatial indexing.  The H3 paper Would be cool to recreate.  
 
 
 ## Bibliography
 
-[1]: Crotty, A. et al. “What Goes Around: Reproducibility, Reproducibility!” SIGMOD Record, 2024. Accessed August 2024. https://db.cs.cmu.edu/papers/2024/whatgoesaround-sigmodrec2024.pdf.
+[1]: Stonebraker, M., Pavlo A. “What Goes Around: Reproducibility, Reproducibility!” SIGMOD Record, 2024. https://db.cs.cmu.edu/papers/2024/whatgoesaround-sigmodrec2024.pdf.
 
-[2]: Kleppmann, M. Designing Data-Intensive Applications: The Big Ideas Behind Reliable, Scalable, and Maintainable Systems. O'Reilly Media, 2017. Accessed August 2024. https://dataintensive.net/.
+[2]: Kleppmann, M. Designing Data-Intensive Applications: The Big Ideas Behind Reliable, Scalable, and Maintainable Systems. O'Reilly Media, 2017. https://dataintensive.net/.
 
 [3]: Silberschatz, A., Korth, H. F., & Sudarshan, S. Database System Concepts, 7th Edition. McGraw-Hill, 2019. https://db-book.com/.
 
 [4]: “Riak: An Introduction to Bitcask.” Basho Technologies, 2010. https://riak.com/assets/bitcask-intro.pdf.
 
-[5]: Crotty, A., Leis, V., & Pavlo, A. “Are You Sure You Want to Use MMAP in Your Database Management System?” Proceedings of the 2022 ACM SIGMOD International Conference on Management of Data. Accessed August 2024. https://db.cs.cmu.edu/papers/2022/cidr2022-p13-crotty.pdf.
+[5]: Crotty, A., Leis, V., & Pavlo, A. “Are You Sure You Want to Use MMAP in Your Database Management System?” Proceedings of the 2022 ACM SIGMOD International Conference on Management of Data. https://db.cs.cmu.edu/papers/2022/cidr2022-p13-crotty.pdf.
 
 [6]: Kerrisk, M. The Linux Programming Interface: A Linux and UNIX System Programming Handbook. No Starch Press, 2010. https://man7.org/tlpi/.
 
