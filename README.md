@@ -2,7 +2,7 @@
 
 ![alt text][UnearthDB]
 
-[UnearthDB]: https://github.com/arch-r45/unearthDB/blob/main/docs/pictures/stratadb.png
+[UnearthDB]: https://github.com/arch-r45/unearthDB/blob/main/docs/pictures/stratadb2.png
 
 
 ## Table of Contents
