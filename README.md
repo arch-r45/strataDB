@@ -16,13 +16,14 @@
 [Get API](#get-api)  
 [Compaction](#compaction)  
 [Concurrency Control and Non-Determinsm](#Concurrency-Control-and-Non-Determinsm)  
-[Future Improvements and Summary](#Future-Improvements-and-Summary)   
+[Future Improvements and Summary](#Future-Improvements-and-Summary)  
+[Bibliography](#bibliography)  
 
 
 
 ## Overview
 
-In this repository, I implement a persistent, multithreaded key value log store based on bitcask [4], using C on top of the Linux Operating system and package it into a Docker container.  I use Linux DIRECT_IO to bypass the operating systems buffer cache and implement my own buffer pool manager that handles page replacement intelligently in user space.  This also avoids double caching that hinders systems like PostgreSQL who choose to implement their own buffer pool manager but not use DIRECT_IO.  My implementation achieves 15,000 persistent writes per second which is a significant improvement over the 6,000 writes per second reported in the original Bitcask paper on similar hardware.  I also implement a thread safe, compaction algorithm that runs in a background thread.  The compaction algorithm saves 99 GB of space for every 100GB written by eliminating the vast majority of redundant data.  The system also handles race conditions eloquently and avoids deadlock entirely by never violating the hold and wait principle.   
+In this repository, I implement a persistent, multithreaded, write-optimized key-value log store based on bitcask [4], using C on top of the Linux Operating system, and package it into a Docker container.  I use Linux DIRECT_IO to bypass the operating systems buffer cache and implement my own buffer pool manager that handles page replacement intelligently in user space.  This also avoids double caching that hinders systems like PostgreSQL who choose to implement their own buffer pool manager but not use DIRECT_IO.  My implementation achieves 15,000 persistent writes per second which is a significant improvement over the 6,000 writes per second reported in the original Bitcask paper on similar hardware.  I also implement a thread safe, compaction algorithm that runs in a background thread.  The compaction algorithm saves 99 GB of space for every 100GB written by eliminating the vast majority of redundant data.  The system also handles race conditions eloquently and avoids deadlock entirely by never violating the hold and wait principle.   
 
 ![alt text][rantests]
 
@@ -134,7 +135,7 @@ Therefore the operating system's job is to try to give the illusion to the runni
 
 In database management systems, this becomes even more important due to the sheer size of some databases and the painfully slow speed it takes to read from disk.  Coupled with the proliferation of data that has emerged over the course of the current century, and the need for quick response times for web pages, minimizing the amount of block transfers between disk and memory is paramount.  Many popular DBMS’s started out with relying on the operating system for buffer caching, and almost all of them have eventually switched to using direct IO and relying entirely on their own buffer pool manager.  [5] This is because for general purpose programs that the operating system needs to support, it's not possible to accurately predict which blocks will be referenced.  In result, the operating system predicts future block accesses by the past pattern of block references.  [3].  A database system is able to accurately predict the pattern of future references for its application better than an operating system can for general purpose programs.  Database engineers have exploited this property in development and use it to boost query performance.  
 
-Bitcask chose not to implement a buffer pool manager and their reasoning centered around the fact they were already getting so much for free from the operating system.[4]  It definitely makes more sense for relational database management systems to pay the costs of implementing their own because of the abundance of join and range queries that are not possible in a system like Bitcask but common in a relational DB. 
+Bitcask chose not to implement a buffer pool manager and their reasoning centered around the fact they were already getting so much for free from the operating system.[4]  It definitely makes more sense for relational database management systems to pay the costs of implementing their own buffer pool because of the abundance of join and range queries that are not possible in a system like Bitcask but common in a relational DB. 
 
 ## Buffer Pool Implementation
 
@@ -144,7 +145,7 @@ Bitcask chose not to implement a buffer pool manager and their reasoning centere
 
 > My buffer pool in the midst of executing a read_from_buffer_pool() call. 
 
-There is a boot up call to the buffer pool manager that initializes the buffer_pool struct which is the main struct for the buffer pool.  The main variables here are the pointer to block which points to the first memory address of the block of the big block of memory that is going to be added when we call 
+There is a boot up call to the buffer pool manager that initializes the buffer_pool struct which is the main struct for the buffer pool.  The main variables here are the pointer to manager->block which points to the first memory address of the chunk of memory that is going to be added when we call:
 
 ```c
 void boot_up_buffer_pool();
@@ -153,15 +154,16 @@ void boot_up_buffer_pool();
 We will allocate a fixed amount of bytes when we make the call and also have control over the size of the page.  The only requirement is the pages need to be the same size throughout the block.  Without this requirement, pointer arithmetic would be harder and there lacks a valid reason to have different sizes when we are just reading and writing from log files.  Usually block sizes are 4 KB or 8 KB even in relational databases  and there's a couple main reasons for this. First, I/O system calls are expensive, we do not want to bring in one record to a block everytime we make an I/O system call; we would rather just bring in the whole block and perhaps use some of the other data at another time.  Also 4KB is the max upper limit the operating system guarantees that the write will happen atomically.  Anything more than 4KB and we risk the I/O scheduler reordering our write call and perhaps losing some of the data in a system crash which therefore makes it impossible to guarantee that the transaction was atomic.  Atomicity is obviously a huge deal in transactional guarantees, and we need this all or nothing property to hold in most databases.  
 
 
-The read api that we expose to the rest of the application is the only entry point from the rest of our application into our buffer pool.  
+The read api that we expose to the rest of the application is the only entry point from the rest of our application into our buffer pool. (I am not counting the write_to_buffer_call() function here because it itself ends up calling this read_from_buffer_pool() entry point as well)
+
 ```c
 char * read_from_buffer_pool(char *path)
 ```
-We accept, as input, a pointer to a string path that represents the log file path of the file we are trying to access and we output a pointer to the address of the beginning of the block in our buffer pool where this file is located.  This makes the API that we are exposing very similar to a read() system call,  therefore expressing a high degree of modularity by keeping the components from becoming too intertwined.  Once the call is made, we check if the path is already in our buffer pool, and if it is, we return a pointer to that location and we send the node representing the path to the front of our lru_cache.   We keep a hash map called a page table which can be used to efficiently check in constant time if our path is already in our buffer pool.  If the path is not already in our buffer pool, we try to see if there are any free frames in our free frame list.  If there are free frames, we read the file from disk into the free location and set the path to that location in our page_table while also adding the node to the front of the lru_cache.  If the free frame list is empty, we need to evict.  My eviction policy is an LRU cache which I described above but I want to try different variations of it.  I also want to experiment with a Least Frequently Used(LFU) Cache for this use case but it's hard to make this work well on modern hardware. [3]  
+We accept, as input, a pointer to a string path that represents the log file path of the file we are trying to access and we output a pointer to the address of the beginning of the block that is associated with this file path in our buffer pool.  This makes the API that we are exposing very similar to a read() system call, therefore expressing a high degree of modularity by keeping the components from becoming too intertwined.  Once the call is made, we check if the path is already in our buffer pool, and if it is, we return a pointer to that location and we send the node representing the path to the front of our lru_cache.   We keep a hash map called a page table which can be used to efficiently check in constant time if our path is already in our buffer pool.  If the path is not already in our buffer pool, we try to see if there are any free frames in our free frame list.  If there are free frames, we read the file from disk into the free location and set the path to that location in our page_table while also adding the node to the front of the lru_cache.  If the free frame list is empty, we need to evict.  My eviction policy is an LRU cache which I described above but I want to try different variations of it.  I also want to experiment with a Least Frequently Used(LFU) Cache for this use case but it's hard to make this work well on modern hardware. [3]  
 
 One of the most important parts of the buffer pool is making sure to pin certain blocks of memory in place when they are being accessed by some thread.  In a concurrent application with many workers fulfilling concurrent read operations, problems can arise without pinning certain memory blocks down.  This can occur if one thread accesses a block of memory, and in the middle of its operation, another thread forces the system to evict, and the memory location the first thread was accessing is in the same memory location, but the data inside that location changes.  In my application, I avoided having concurrent reads initially but it is something I am looking to add.  However, I still needed to implement a pinning mechanism because my compaction algorithm is running in parallel to my main thread.  The compaction algorithm also runs a greater risk of getting blocks evicted because it performs linear scans through older files while the main thread is quickly serving reads on more current files.
 
-The biggest problem of pinning is the risk of thrashing.  Thrashing is another concept from operating systems, and its definition is when a process spends more time paging new files then executing.  This can happen if the number of concurrent processes(or threads in databases) is too high, and each time a process tries to access a file, it page-faults and needs to evict some other process from memory.  In most operating systems, the CPU then gets underutilized and therefore increases the degree of multiprogramming, resulting in more thrashing.  [7]
+The biggest problem of pinning is the risk of thrashing.  Thrashing is another concept from operating systems, and its definition is when a process spends more time paging new files then executing.  This can happen if the number of concurrent processes(or threads in databases) is too high, and each time a process tries to access a file, it page-faults and needs to evict some other process from memory.  In most operating systems, the CPU then gets underutilized (becuase it wants to reduce the time in idle mode) and therefore increases the degree of multiprogramming, resulting in more thrashing.  [7]
 
 
 ![alt text][thrashing]
@@ -204,7 +206,7 @@ Once we then perform the write() system call, we add the string key as our key t
 
 ## Get API
 
-Our Get API takes as input a pointer to the address space of some character *key* and returns a character pointer to the value of that key.  On success, it returns the pointer the value of the key inserted, it returns a pointer to a char array "Key Does Not Exist" if not.  
+Our Get API takes as input a pointer to the address space of some character *key* and returns a character pointer to the value of that key.  On success, it returns a pointer to the value of the key inserted, or on failure, it returns a pointer to a char array "Key Does Not Exist".  
 
 ```c
 char *get(char *key)
@@ -212,7 +214,7 @@ char *get(char *key)
 
 When we enter the get call, we immediately need to place a mutex lock to ensure our compaction thread does not delete the file and subsequent buffer block from disk before we have returned our value.  Failure to do this will result in segmentation faults.  
 
-Then we need to loop through our directory buffer in reverse.  The reason for performing this loop in reverse is that our most up to date value of a given key comes from the most recent insertion.  If you think of our buffer pool like a queue, we add new files to the end and we pop files from the front.  The main idea is we are going from back to front, or from newest to oldest, whatever the best way to describe it is.  We go through our records in our directory buffer and check to see if the key is in each record's hashmap.  This is very efficient, because for each hashmap we check we have average of O(1) constant time lookups on each key, so our time complexity ends up being 0(N) * O(1) or just O(N) with N being the number of records in our directory buffer.  However, the compaction algorithm ensures that N does not grow without bound, and everytime our file number gets above a certain threshold, it compacts the data together,  reducing the size of our directory buffer to some constant.  This ends up making our time complexity closer to O(1) constant time depending on what kind of data we are dealing with.  Also, because of compaction, we are constantly shifting our unique keys to the end of our directory buffer, further reducing our average time lookup of most keys.  
+Then we need to loop through our directory buffer in reverse.  The reason for performing this loop in reverse is that our most up to date value of a given key comes from the most recent insertion.  If you think of our buffer pool like a queue, we add new files to the end and we pop files from the front.  The main idea is we are going from back to front, or from newest to oldest, whatever the best way to describe it is.  We go through our records in our directory buffer and check to see if the key is in each record's hashmap.  This is very efficient, because for each hashmap we check we have an average of O(1) constant time lookups on each key, so our time complexity ends up being 0(N) * O(1) or just O(N) with N being the number of records in our directory buffer.  However, the compaction algorithm ensures that N does not grow without bound, and everytime our file number gets above a certain threshold, it compacts the data together,  reducing the size of our directory buffer to some constant.  This ends up making our time complexity closer to O(1) constant time depending on what kind of data we are dealing with.  Also, because of compaction, we are constantly shifting our unique keys to the end of our directory buffer, further reducing our average time lookup of most keys.  
 
 If we finish our loop, and don’t find any key, we know the value does not exist so we can return.  If not, we grab our buffer memory location from our buffer pool manager, index into our array in our hashmap to grab our offset and byte size and perform our lookup.  We have to help out our buffer pool before we return our value by releasing the pin the buffer pool set.  We can do this by flipping the bit.  Then we can release our mutex lock and return the value.  
 
@@ -234,7 +236,7 @@ The compaction technique here saves a lot of storage space.  Obviously if the ap
 
 ## Concurrency Control and Non-Determinsm 
 
-Computers are by law deterministic[15] meaning that each time we run a program with a set of inputs we expect it to produce the same exact output every time.  This phenomenon holds especially true for anyone who has ever written a simple serial program that contains a bug.  No matter how many times you retry the same program(to maybe print some output to the terminal in order to debug), you will get the same error message every time.  The reason is because computers obey laws of nature, which are themselves deterministic.  Anytime we encounter a phenomenon in nature that appears to give random outcomes, the variables are either too unknown to us, or too intractable to take account of.  [16]  Appearing as random does not invoke non-determinism in this sense.  The impossibility of writing a non-pseudo random number generator program illustrates that computers must follow deterministic instructions.  If one could write a true random number generator that actually produces a different answer with the exact same inputs, then determinism would be disproven not only in computers, but in physics as well.  Yet, we are left with computer programs that can only simulate the *effect* of randomness, including, but not limited to, some extremely clever techniques that take advantage of hardware decay and clocks.  These programs are not non-deterministic, as if someone was able to input the exact variables that the program is using, it will always return the same result.  
+Computers are by law deterministic[15] meaning that each time we run a program with a set of inputs we expect it to produce the same exact output every time.  This phenomenon holds especially true for anyone who has ever written a simple serial program that contains a bug.  No matter how many times you retry the same program(to maybe print some output to the terminal in order to debug), you will get the same error message every time.  The reason is because computers obey laws of nature, which are themselves deterministic.  Anytime we encounter a phenomenon in nature that appears to give random outcomes, the variables are either too unknown to us, or too intractable to take account of.  [16]  Appearing as random does not invoke non-determinism in this sense.  The impossibility of writing a non-pseudo random number generator program illustrates that computers must follow deterministic instructions.  If one could write a true random number generator that actually produces a different answer with the exact same inputs, then determinism would be disproven not only in computers, but in physics as well.  Yet, we are left with computer programs that can only simulate the *effect* of randomness, employing some extremely clever techniques that take advantage of decay and clocks in the computer's hardware.  These programs are not non-deterministic, as if someone was able to input the exact variables that the program is using, it will always return the same result.  
 
 However, when we introduce memory-sharing threads with concurrency,  we can *appear* to get a completely different phenomenon altogether, as we can run the same program multiple times with the same input and receive different answers.  
 
@@ -246,41 +248,83 @@ However, when we introduce memory-sharing threads with concurrency,  we can *app
 > Example of inconsistent results of the same exact program
 
 
-In the above terminal output, this is me running my main.test.c output file, testfile in consecutive iterations and yielding appearingly random results.  The tests will pass at 100% and then only at 80% rate, meaning some programs inside my test cases experienced deviations in their results on different iterations.  There was no recompiling of the program, these were simply output files being run consecutively.  In shared memory concurrency, these inconsistencies are caused by race conditions.  Because two threads can manipulate the same variable, if they both arrive at a shared variable at the same time, it becomes dependent on the CPU scheduler of the Operating System to decide which low level assembly instructions to execute first.[]  Because the CPU scheduler is complex and below the level of abstraction of the individual programmer, it is pretty intractable to understand how exactly it's going to execute at a specific point of time, because its managing numerous other processes.  
+In the above terminal output, this is me running my main.test.c output file, testfile in consecutive iterations and yielding appearingly random results.  The tests will pass at 100% and then only at 80% rate, meaning some programs inside my test cases experienced deviations in their results on different iterations.  There was no recompiling of the program, these were simply output files being run consecutively.  In shared memory concurrency, these inconsistencies are caused by race conditions.  Because two threads can manipulate the same variable, if they both arrive at a shared variable at the same time, it becomes dependent on the CPU scheduler of the Operating System to decide which low level assembly instructions to execute first.[7]  Because the CPU scheduler is complex and below the level of abstraction of the individual programmer, it is almost intractable to understand how exactly it's going to execute at a specific point of time, because its managing numerous other processes.  
 
 
-I was running into problems trying to figure out why I was getting inconsistent results.  This was arising from race conditions on some variables inside my set() call.  I would get the file index at the start of my call from my directory buffer and write the key and value to disk.  However, once the write was successful, I would then add the byte size and offset in the files hashmap for the respective key.  However, if the compaction thread's low level execution was intertwined with my set() call at this point, and the compaction call changes the file index in between writing the metadata to disk and setting to the hashmap, we would end up setting the file index and offset to the wrong hashmap(the next files hashmap).   If we then called get() in our tests on that key, we would have mismatched keys and return the error that is in the picture above.  In some cases, this would produce the wrong result, and in some cases it wouldn’t, which is why it seems to be non-deterministic.  The computer though is behaving exactly according to how its instructed, however from the developers perspective, its acting random, but its closely following the complicated code of the operating system.  
+I was running into problems trying to figure out why I was getting inconsistent results.  This was arising from race conditions on some variables inside my set() call.  I would get the file index at the start of my call from my directory buffer and write the key and value to disk.  However, once the write was successful, I would then add the byte size and offset in the files hashmap for the respective key.  However, if the compaction thread's low level execution was intertwined with my set() call at this point, and the compaction call changes the file index in between writing the metadata to disk and adding the key to the hashmap, we would end up setting the file index and offset to the wrong hashmap(the next files hashmap).   If we then called get() in our tests on that key, we would have mismatched keys and return the error that is in the picture above.  In some cases, this would produce the wrong result, and in some cases it wouldn’t, which is why it seems to be non-deterministic.  The computer is behaving exactly according to how its instructed, however from the developers perspective, its acting random, just the operating system and firmware of the computer is out of view from the programmer.  
 
-In order to solve this problem, I implemented mutex locks which prevent other threads from manipulating variables when locks are set.  This is expensive as it makes other threads stall which effectively reduces the degree of multiprogramming as one less thread can make progress.  However, locks are essential for guaranteeing correctness.  Mutex locks can lead to problems like deadlock, where multiple threads are waiting for a resource to consume that only the other thread can release.  I never ran into deadlock problems with my application.  This is because deadlock can never occur if the hold and wait condition never happens.  I made sure to not allow a thread that was trying to request a resource, to hold onto another resource.  
+In order to solve this problem, I implemented mutex locks which prevent other threads from manipulating variables when locks are set.  This is expensive as it makes other threads stall.  This stalling effectively reduces the degree of multiprogramming in a system as one less thread can make progress.  However, locks are essential for guaranteeing correctness.  Mutex locks can lead to problems like deadlock, where multiple threads are waiting for a thread to finish consuming a resource that only the another thread can release.  I never ran into deadlock problems with my application.  This is because deadlock can never occur if the hold and wait condition never happens.  I made sure to not allow a thread that was trying to request a resource, to hold onto another resource.  
 
 
 ## Future Improvements and Summary
 
-I originally set out to implement the unique functionality of Bitcask with the Get() and Set() and compaction() calls.  I also added the buffer pool manager that Bitcask neglected to add but many other data systems employ and used all my own data structure implementations.  These are by no means bug free and optimal, and I will want to continue to make changes to some of my existing functionality to make it better.  I also set out to replicate Bitcask’s performance metrics, but I have not rigidly benchmarked everything.  I was able to achieve 15,000 writes in just over a second but the testing could have been performed better and definitely had some limitations.  So my existing functionality could be improved, but at the same time I am doing this to learn, first and foremost,  and there are some other areas from other papers and textbooks that pique my interest and I want to look to add, even if this implementation isn’t perfect.
+I originally set out to implement the unique functionality of Bitcask with the Get(), Set() and compaction() calls.  I also added the buffer pool manager that Bitcask neglected to add but many other data systems employ and used all my own data structure implementations.  These are by no means bug free and optimal, and I will want to continue to make changes to some of my existing functionality to make it better.  I also set out to replicate Bitcask’s performance metrics, but I have not rigidly benchmarked everything.  I was able to achieve 15,000 writes in just over a second but the testing could have been performed better and definitely had some limitations.  So my existing functionality could be improved, but at the same time I am doing this to learn, first and foremost,  and there are some other areas from other papers and textbooks that pique my interest that I want to look to add, even if the current functionality isn't 100% optimal.
 
-There are other areas that are not unique to Bitcask, but other systems have unique ways of implementing them.  I wish to explore these other areas in the future and connect those components to this implementation.  One database I am particularly interested in reimplementing parts of is Yellowbrick. [17]  They do really interesting engineering work by bypassing different areas of the operating system, and reimplementing their own mini unikernel.  I outline some of the cool engineering work they do below as well as some other areas that I want to explore on top of this project.
+There are numerous other areas in Database Development that are not unique to Bitcask and other systems have unique ways of implementing them.  I wish to explore these other areas in the future and connect those components to this implementation.  One database I am particularly interested in reimplementing parts of is Yellowbrick. [17]  They do really interesting engineering work by bypassing different areas of the operating system, and reimplementing their own mini unikernel.  I outline some of the cool engineering work they do below as well as some other areas that I want to explore on top of this project.
 
-* tcp/ip networking
-  * Aiming to introduce my own TCP/IP network protocol for communication with my process.  Yellowbrick uses kernel bypass here and grabs raw packets from the hardware and reimplements their own networking stack which would be cool to explore
+* TCP/IP, UDP/IP -> networking
+  * Aiming to introduce my own TCP/IP and UDP/IP network protocol for communication with my database process.  Yellowbrick uses kernel bypass here by grabbing raw packets from the hardware and reimplements their own networking stack which seems very cool to explore.  Quant Trading firms are also known to employ these tactics.  
 
 * Parser-> Lexical Analyzer (Mini Compiler)
-  * Want to implement the parser and LA from scratch in c, this would revolve around simulating an NFA inside a DFA and writing my own mini compiler(without anything past intermediate code gen)
+  * Want to implement the parser and LA from scratch in c, this would revolve around simulating an NFA inside a DFA and writing my own mini compiler(without anything past the intermediate code gen step)
 
 * LSM Tree Extension(Red Black Tree Index)
   * Fork this in to an LSM Tree implementation with a red black tree index structure 
     * Then extend the compiler to write a query optimizer that can take existing queries and execute the one with the lowest costs.  LSM Trees can perform range queries so this will give me more to optimize
 
-* Make it Distributed
-  * I do not mean connect this to AWS, but make it evenly distributed across different running processes and ports to get a better working understanding on Distributed Systems
+* Add Distributed Functionality
+  * I do not mean connect this to AWS, but make it evenly distributed across different running processes and ports to get a better working understanding on Distributed Systems.  Partitioning data across multiple nodes in a network is mandatory in today's world of cloud computing.  
 
 * Improve my hashmap implementations
   * I implemented all my hash maps in c, and because the hash maps were never getting seriously large, optimizing them did not matter.  With query optimization, it becomes vital to have ultra high performing hash maps so I want to explore optimizing them.  
 
 * Memory Allocator
-  * Yellowbrick does not call malloc() after they boot up, all memory is allocated in user space from the already allocated chunk of memory.  This is what the operating system performs for the user and can offer some great performance measurements according to Yellowbrick[17]
+  * Yellowbrick does not call malloc() after they boot up, all memory is allocated in user space from the already allocated chunk of memory.  So they are further reimplemting different aspects of the operating system and they say this leads to positive performance measurements[17].
 
 * Add FPGA/Hardware Accelerators
   * An interesting paper uses FPGA's to speed up the compaction for LSM Trees [18], Writing a hardware driver that connected to the database would be something I am dying to explore.   
+
+* Build a Geo-Spatial Indexing technique
+  * Uber engineering has an interesting paper on their h3 structure they open sourced for more efficent geo-spatial indexing.  Would be cool to recreate.  
+
+
+## Bibliography
+
+[1]: Crotty, A. et al. “What Goes Around: Reproducibility, Reproducibility!” SIGMOD Record, 2024. Accessed August 2024. https://db.cs.cmu.edu/papers/2024/whatgoesaround-sigmodrec2024.pdf.
+
+[2]: Kleppmann, M. Designing Data-Intensive Applications: The Big Ideas Behind Reliable, Scalable, and Maintainable Systems. O'Reilly Media, 2017. Accessed August 2024. https://dataintensive.net/.
+
+[3]: Silberschatz, A., Korth, H. F., & Sudarshan, S. Database System Concepts, 7th Edition. McGraw-Hill, 2019. https://db-book.com/.
+
+[4]: “Riak: An Introduction to Bitcask.” Basho Technologies, 2010. https://riak.com/assets/bitcask-intro.pdf.
+
+[5]: Crotty, A., Leis, V., & Pavlo, A. “Are You Sure You Want to Use MMAP in Your Database Management System?” Proceedings of the 2022 ACM SIGMOD International Conference on Management of Data. Accessed August 2024. https://db.cs.cmu.edu/papers/2022/cidr2022-p13-crotty.pdf.
+
+[6]: Kerrisk, M. The Linux Programming Interface: A Linux and UNIX System Programming Handbook. No Starch Press, 2010. https://man7.org/tlpi/.
+
+[7]: Silberschatz, A., Galvin, P. B., & Gagne, G. Operating System Concepts, 10th Edition. Wiley, 2018. https://os-book.com/OS10/index.html.
+
+[8]: Cormen, T. H., Leiserson, C. E., Rivest, R. L., & Stein, C. Introduction to Algorithms, 4th Edition. MIT Press, 2022. https://mitpress.mit.edu/9780262046305/introduction-to-algorithms/.
+
+[9]: Athanassoulis, M., Kester, M. S., Maas, L. M., Stoica, R., Idreos, S., Ailamaki, A., & Callaghan, M. “Designing Access Methods: The RUM Conjecture.” Proceedings of the 2016 International Conference on Extending Database Technology (EDBT). https://openproceedings.org/2016/conf/edbt/paper-12.pdf.
+
+[10]: “Stack Overflow Developer Survey 2024: Databases.” Stack Overflow. Accessed August 2024. https://survey.stackoverflow.co/2024/technology#1-databases.
+
+[11]: Dean, J., & Ghemawat, S. “LevelDB: A Fast Persistent Key-Value Store.” Google Open Source Blog, 2011. https://opensource.googleblog.com/2011/07/leveldb-fast-persistent-key-value-store.html.
+
+[12]: Borthakur, D. “Under the Hood: Building and Open-Sourcing RocksDB.” Facebook Engineering Blog, November 21, 2013. https://engineering.fb.com/2013/11/21/core-infra/under-the-hood-building-and-open-sourcing-rocksdb/.
+
+[13]: Hong Kong Exchanges and Clearing Limited. “Securities Statistics Archive: Trading Value, Volume, and Number of Deals (Main Board).” Accessed August 2024. https://www.hkex.com.hk/Market-Data/Statistics/Consolidated-Reports/Securities-Statistics-Archive/Trading_Value_Volume_And_Number_Of_Deals?sc_lang=en#select1=0&selection=2020-2024-(up-to-the-end-of-previous-month).
+
+[14]: Fitzpatrick, B. “Distributed Caching with Memcached Software.” Linux Journal, August 1, 2004. https://www.linuxjournal.com/article/7451.
+
+[15]: Lee, E. A. “The Problem with Threads.” EECS Department, University of California, Berkeley, Technical Report No. UCB/EECS-2006-1, January 2006. https://www2.eecs.berkeley.edu/Pubs/TechRpts/2006/EECS-2006-1.pdf.
+
+[16]: Deutsch, D. The Beginning of Infinity: Explanations That Transform the World. Penguin Books, 2011. https://www.thebeginningofinfinity.com/.
+
+[17]: Cusack, M. et al. “Yellowbrick Data Warehouse: A Hybrid Cloud Solution for High-Performance Analytics.” CMU Database Group, 2024. https://15721.courses.cs.cmu.edu/spring2024/papers/21-yellowbrick/p2-cusack.pdf.
+
+[18]: Sun, X., Yu, J., Zhou, Z., & Xue, C. J. “FPGA-based Compaction Engine for Accelerating LSM-tree Key-Value Stores.” 2020 IEEE 36th International Conference on Data Engineering (ICDE). https://conferences.computer.org/icde/2020/pdfs/ICDE2020-5acyuqhpJ6L9P042wmjY1p/290300b261/290300b261.pdf.
 
 
 
@@ -298,8 +342,7 @@ There are other areas that are not unique to Bitcask, but other systems have uni
 [9]: https://openproceedings.org/2016/conf/edbt/paper-12.pdf
 [10]: https://survey.stackoverflow.co/2024/technology#1-databases
 [11]: https://opensource.googleblog.com/2011/07/leveldb-fast-persistent-key-value-store.html
-
-[12]: https://scontent-bos5-1.xx.fbcdn.net/v/t39.8562-6/260203686_676839503287444_5314493774276549632_n.pdf?_nc_cat=103&ccb=1-7&_nc_sid=e280be&_nc_ohc=IJTyN6ica4wQ7kNvgFrxlQ9&_nc_ht=scontent-bos5-1.xx&oh=00_AYCXWpweCFtT2tD6TrytSOQBfGkrh5nhK8hGV8YK3u_SvQ&oe=66C174FC
+[12]: https://engineering.fb.com/2013/11/21/core-infra/under-the-hood-building-and-open-sourcing-rocksdb/
 
 [13]: https://www.hkex.com.hk/Market-Data/Statistics/Consolidated-Reports/Securities-Statistics-Archive/Trading_Value_Volume_And_Number_Of_Deals?sc_lang=en#select1=0&selection=2020-2024-(up-to-the-end-of-previous-month)
 
