@@ -81,7 +81,7 @@ int master_add_key_resize_array(master_hash_map_array* new_map, int key, static_
 
 master_hash_map_array * master_resize_array(master_hash_map_array *map){
     //printf("Resize called \n");
-    //printf("Pointer to map inside resize %p \n", map);
+    printf("Pointer to map inside resize %p \n", map);
     int new_size = map->total_size * 2;
     master_hash_map_array *new_map = (master_hash_map_array*)malloc(sizeof(master_hash_map_array));
     new_map->hash_map = (master_map_item_array*)malloc(sizeof(master_map_item_array) * new_size);
